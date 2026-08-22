@@ -78,7 +78,7 @@ export const DEFAULT_POCKETS = [
     rules: {
       round10: { mode: 'percent_remaining', value: 50 }, // 50% ของเงินที่เหลือหลังหัก Fix
       round25: { mode: 'percent_remaining', value: 50 },
-      special: { mode: 'percent_remaining', value: 0 }  // เงินพิเศษไม่ลงค่ากิน
+      special: { mode: 'percent_remaining', value: 0 }  // เงินพิเศษ
     }
   },
   {
@@ -151,18 +151,70 @@ export const DEFAULT_POCKETS = [
     }
   },
 
-  // --- BEE (🐝) ---
+  // --- BEE (🐝) - Zero 1 ถึง Zero 5 แยกรายกระเป๋า ---
   {
     id: 'p_zero1',
-    name: 'Zero 1-5 (พอร์ตลงทุน)',
+    name: 'Zero 1',
     categoryId: 'bee',
-    description: 'พอร์ตลงทุนหลัก 1-5',
+    description: 'พอร์ตการลงทุน Zero 1',
     emoji: '📈',
     isActive: true,
     rules: {
-      round10: { mode: 'percent_remaining', value: 6 },
-      round25: { mode: 'percent_remaining', value: 6 },
-      special: { mode: 'percent_remaining', value: 12 }
+      round10: { mode: 'percent_remaining', value: 1.5 },
+      round25: { mode: 'percent_remaining', value: 1.5 },
+      special: { mode: 'percent_remaining', value: 3 }
+    }
+  },
+  {
+    id: 'p_zero2',
+    name: 'Zero 2',
+    categoryId: 'bee',
+    description: 'พอร์ตการลงทุน Zero 2',
+    emoji: '📊',
+    isActive: true,
+    rules: {
+      round10: { mode: 'percent_remaining', value: 1.5 },
+      round25: { mode: 'percent_remaining', value: 1.5 },
+      special: { mode: 'percent_remaining', value: 3 }
+    }
+  },
+  {
+    id: 'p_zero3',
+    name: 'Zero 3',
+    categoryId: 'bee',
+    description: 'พอร์ตการลงทุน Zero 3',
+    emoji: '💹',
+    isActive: true,
+    rules: {
+      round10: { mode: 'percent_remaining', value: 1 },
+      round25: { mode: 'percent_remaining', value: 1 },
+      special: { mode: 'percent_remaining', value: 2 }
+    }
+  },
+  {
+    id: 'p_zero4',
+    name: 'Zero 4',
+    categoryId: 'bee',
+    description: 'พอร์ตการลงทุน Zero 4',
+    emoji: '🎯',
+    isActive: true,
+    rules: {
+      round10: { mode: 'percent_remaining', value: 1 },
+      round25: { mode: 'percent_remaining', value: 1 },
+      special: { mode: 'percent_remaining', value: 2 }
+    }
+  },
+  {
+    id: 'p_zero5',
+    name: 'Zero 5',
+    categoryId: 'bee',
+    description: 'พอร์ตการลงทุน Zero 5',
+    emoji: '💼',
+    isActive: true,
+    rules: {
+      round10: { mode: 'percent_remaining', value: 1 },
+      round25: { mode: 'percent_remaining', value: 1 },
+      special: { mode: 'percent_remaining', value: 2 }
     }
   },
   {

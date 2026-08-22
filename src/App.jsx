@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { DEFAULT_POCKETS, CATEGORIES } from './data/defaultPockets';
 import { calculateAllocation } from './utils/allocationEngine';
@@ -10,11 +10,19 @@ import { HistoryLog } from './components/HistoryLog';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('calculator');
-  const [pockets, setPockets] = useLocalStorage('make_pockets_v1', DEFAULT_POCKETS);
+  const [pockets, setPockets] = useLocalStorage('make_pockets_v2', DEFAULT_POCKETS);
   const [currentMode, setCurrentMode] = useLocalStorage('make_current_mode', 'round10');
   const [incomeAmount, setIncomeAmount] = useLocalStorage('make_income_amount', 6000);
   const [history, setHistory] = useLocalStorage('make_history_v1', []);
   const [checkedPockets, setCheckedPockets] = useLocalStorage('make_checked_pockets', {});
+
+  // Auto-migration check: If old single "p_zero1" with name "Zero 1-5" is present, update to separate Zero 1 - 5
+  useEffect(() => {
+    const hasOldZero = pockets.some(p => p.id === 'p_zero1' && p.name.includes('1-5'));
+    if (hasOldZero) {
+      setPockets(DEFAULT_POCKETS);
+    }
+  }, [pockets, setPockets]);
 
   // Compute live allocation
   const calculation = useMemo(() => {
@@ -25,7 +33,7 @@ export default function App() {
   const handleExportBackup = () => {
     const backupData = {
       app: 'MAKE Pocket Planner',
-      version: '1.0',
+      version: '1.1',
       exportDate: new Date().toISOString(),
       pockets,
       currentMode,
@@ -56,7 +64,7 @@ export default function App() {
 
   // Reset to default
   const handleResetDefaults = () => {
-    if (window.confirm('คุณต้องการรีเซ็ตกระเป๋าและกฎทั้งหมดกลับเป็นค่าเริ่มต้น 5 หมวดหมู่ (Squirrel, Rhino, Cat, Bee, Shark) หรือไม่?')) {
+    if (window.confirm('คุณต้องการรีเซ็ตกระเป๋าและกฎทั้งหมดกลับเป็นค่าเริ่มต้น 5 หมวดหมู่ (Squirrel, Rhino, Cat, Bee [Zero 1-5], Shark) หรือไม่?')) {
       setPockets(DEFAULT_POCKETS);
       setCheckedPockets({});
     }
@@ -101,6 +109,10 @@ export default function App() {
         {activeTab === 'checklist' && (
           <TransferChecklist
             calculation={calculation}
+            currentMode={currentMode}
+            setCurrentMode={setCurrentMode}
+            incomeAmount={incomeAmount}
+            setIncomeAmount={setIncomeAmount}
             checkedPockets={checkedPockets}
             setCheckedPockets={setCheckedPockets}
             onBackToCalculator={() => setActiveTab('calculator')}
@@ -124,7 +136,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-4 mt-12 text-center text-xs text-slate-400">
-        <p className="flex items-center justify-center gap-1">
+        <p className="flex items-center justify-center gap-1 flex-wrap">
           <span>MAKE Cloud Pocket Salary & Income Planner</span>
           <span>•</span>
           <span>🐿️ Squirrel</span>
@@ -133,7 +145,7 @@ export default function App() {
           <span>•</span>
           <span>🐱 Cat</span>
           <span>•</span>
-          <span>🐝 Bee</span>
+          <span>🐝 Bee (Zero 1-5)</span>
           <span>•</span>
           <span>🦈 Shark</span>
         </p>
