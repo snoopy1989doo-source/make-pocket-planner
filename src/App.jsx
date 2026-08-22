@@ -137,7 +137,7 @@ export default function App() {
           <span>•</span>
           <span>🐱 Cat</span>
           <span>•</span>
-          <span>🐝 Bee (Zero 1-5)</span>
+          <span>🐝 Bee</span>
           <span>•</span>
           <span>🦈 Shark</span>
         </p>
