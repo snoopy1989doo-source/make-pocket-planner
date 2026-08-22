@@ -2,14 +2,15 @@
   "name": "MAKE Pocket Planner",
   "short_name": "MAKE Planner",
   "description": "ระบบคำนวณและกระจายเงินเดือน & เงินพิเศษ เข้าสู่ MAKE by KBank Cloud Pockets",
-  "start_url": "./",
+  "start_url": "/make-pocket-planner/",
+  "scope": "/make-pocket-planner/",
   "display": "standalone",
   "background_color": "#FFFBEB",
   "theme_color": "#F59E0B",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "./icon.svg",
+      "src": "/make-pocket-planner/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
