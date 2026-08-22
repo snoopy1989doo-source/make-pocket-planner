@@ -12,24 +12,44 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('calculator');
   const [pockets, setPockets] = useLocalStorage('make_pockets_v3', DEFAULT_POCKETS);
   const [currentMode, setCurrentMode] = useLocalStorage('make_current_mode', 'round10');
-  const [incomeAmount, setIncomeAmount] = useLocalStorage('make_income_amount', 6000);
+  
+  // Independent income amounts for each mode
+  const [incomeAmounts, setIncomeAmounts] = useLocalStorage('make_income_amounts_v2', {
+    round10: 6000,
+    round25: 6000,
+    special: 5000
+  });
+
   const [history, setHistory] = useLocalStorage('make_history_v1', []);
   const [checkedPockets, setCheckedPockets] = useLocalStorage('make_checked_pockets', {});
 
+  // Get current active income amount for the selected mode
+  const currentIncomeAmount = incomeAmounts[currentMode] !== undefined
+    ? incomeAmounts[currentMode]
+    : (currentMode === 'special' ? 5000 : 6000);
+
+  const handleSetIncomeAmount = (amount) => {
+    const num = Math.max(0, Number(amount) || 0);
+    setIncomeAmounts(prev => ({
+      ...prev,
+      [currentMode]: num
+    }));
+  };
+
   // Compute live allocation
   const calculation = useMemo(() => {
-    return calculateAllocation(incomeAmount, currentMode, pockets);
-  }, [incomeAmount, currentMode, pockets]);
+    return calculateAllocation(currentIncomeAmount, currentMode, pockets);
+  }, [currentIncomeAmount, currentMode, pockets]);
 
   // Export JSON Backup
   const handleExportBackup = () => {
     const backupData = {
       app: 'MAKE Pocket Planner',
-      version: '1.2',
+      version: '1.3',
       exportDate: new Date().toISOString(),
       pockets,
       currentMode,
-      incomeAmount,
+      incomeAmounts,
       history
     };
     const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
@@ -46,7 +66,14 @@ export default function App() {
     if (data && data.pockets && Array.isArray(data.pockets)) {
       setPockets(data.pockets);
       if (data.history) setHistory(data.history);
-      if (data.incomeAmount) setIncomeAmount(data.incomeAmount);
+      if (data.incomeAmounts) setIncomeAmounts(data.incomeAmounts);
+      else if (data.incomeAmount) {
+        setIncomeAmounts({
+          round10: data.incomeAmount,
+          round25: data.incomeAmount,
+          special: 5000
+        });
+      }
       if (data.currentMode) setCurrentMode(data.currentMode);
       alert('นำเข้าข้อมูลสำเร็จเรียบร้อย!');
     } else {
@@ -56,9 +83,14 @@ export default function App() {
 
   // Reset to default
   const handleResetDefaults = () => {
-    if (window.confirm('คุณต้องการรีเซ็ตกระเป๋าและกฎทั้งหมดกลับเป็นค่าเริ่มต้น (รวม 1Life 10% ในเงินพิเศษ และ Zero 1-5) หรือไม่?')) {
+    if (window.confirm('คุณต้องการรีเซ็ตกระเป๋าและกฎทั้งหมดกลับเป็นค่าเริ่มต้น 5 หมวดหมู่ (Squirrel, Rhino, Cat, Bee, Shark) หรือไม่?')) {
       setPockets(DEFAULT_POCKETS);
       setCheckedPockets({});
+      setIncomeAmounts({
+        round10: 6000,
+        round25: 6000,
+        special: 5000
+      });
     }
   };
 
@@ -90,8 +122,8 @@ export default function App() {
           <AllocationCalculator
             currentMode={currentMode}
             setCurrentMode={setCurrentMode}
-            incomeAmount={incomeAmount}
-            setIncomeAmount={setIncomeAmount}
+            incomeAmount={currentIncomeAmount}
+            setIncomeAmount={handleSetIncomeAmount}
             calculation={calculation}
             onGoToChecklist={() => setActiveTab('checklist')}
             onSaveToHistory={handleSaveToHistory}
@@ -103,8 +135,8 @@ export default function App() {
             calculation={calculation}
             currentMode={currentMode}
             setCurrentMode={setCurrentMode}
-            incomeAmount={incomeAmount}
-            setIncomeAmount={setIncomeAmount}
+            incomeAmount={currentIncomeAmount}
+            setIncomeAmount={handleSetIncomeAmount}
             checkedPockets={checkedPockets}
             setCheckedPockets={setCheckedPockets}
             onBackToCalculator={() => setActiveTab('calculator')}
@@ -115,6 +147,7 @@ export default function App() {
           <PocketManager
             pockets={pockets}
             setPockets={setPockets}
+            incomeAmounts={incomeAmounts}
           />
         )}
 

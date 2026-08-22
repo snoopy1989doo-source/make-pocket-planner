@@ -12,11 +12,14 @@ import {
   Sliders,
   Eye,
   EyeOff,
-  Calculator
+  Calculator,
+  CheckCircle2,
+  AlertTriangle,
+  Clock
 } from 'lucide-react';
 import { formatMoney, calculateAllocation } from '../utils/allocationEngine';
 
-export function PocketManager({ pockets, setPockets, incomeAmount }) {
+export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 6000, round25: 6000, special: 5000 } }) {
   const [editingPocket, setEditingPocket] = useState(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
@@ -35,12 +38,16 @@ export function PocketManager({ pockets, setPockets, incomeAmount }) {
     }
   });
 
-  // Calculate live preview allocations for all 3 modes
-  const r10Alloc = useMemo(() => calculateAllocation(6000, 'round10', pockets), [pockets]);
-  const r25Alloc = useMemo(() => calculateAllocation(6000, 'round25', pockets), [pockets]);
-  const specAlloc = useMemo(() => calculateAllocation(5000, 'special', pockets), [pockets]);
+  const base10 = incomeAmounts?.round10 || 6000;
+  const base25 = incomeAmounts?.round25 || 6000;
+  const baseSpecial = incomeAmounts?.special || 5000;
 
-  // Helper to get estimated amount for a pocket in a mode
+  // Calculate live preview allocations for all 3 modes
+  const r10Alloc = useMemo(() => calculateAllocation(base10, 'round10', pockets), [base10, pockets]);
+  const r25Alloc = useMemo(() => calculateAllocation(base25, 'round25', pockets), [base25, pockets]);
+  const specAlloc = useMemo(() => calculateAllocation(baseSpecial, 'special', pockets), [baseSpecial, pockets]);
+
+  // Helper to get estimated amount for an existing pocket in a mode
   const getEstimatedAmount = (pocketId, mode) => {
     let resultList = [];
     if (mode === 'round10') resultList = r10Alloc.pocketResults;
@@ -51,17 +58,44 @@ export function PocketManager({ pockets, setPockets, incomeAmount }) {
     return match ? match.allocatedAmount : 0;
   };
 
-  // Helper to get live estimate for current formData being edited
-  const getFormEstimate = (mode) => {
-    const baseIncome = mode === 'special' ? 5000 : 6000;
-    // Temporary pockets list with updated formData
-    const tempPockets = isAddingNew
-      ? [...pockets, formData]
-      : pockets.map(p => p.id === formData.id ? formData : p);
+  // Helper to get live breakdown & remaining stats for current formData being edited
+  const getFormModeStats = (mode) => {
+    const baseIncome = mode === 'round10' ? base10 : mode === 'round25' ? base25 : baseSpecial;
     
-    const alloc = calculateAllocation(baseIncome, mode, tempPockets);
-    const match = alloc.pocketResults.find(p => p.id === formData.id);
-    return match ? match.allocatedAmount : 0;
+    // Construct temporary pockets list with formData
+    const tempPockets = isAddingNew
+      ? [...pockets.filter(p => p.id !== formData.id), formData]
+      : pockets.map(p => p.id === formData.id ? formData : p);
+
+    let fixedSum = 0;
+    let pctSum = 0;
+
+    tempPockets.filter(p => p.isActive).forEach(p => {
+      const rule = p.rules?.[mode] || { mode: 'percent_remaining', value: 0 };
+      if (rule.mode === 'fixed') fixedSum += Number(rule.value) || 0;
+      else pctSum += Number(rule.value) || 0;
+    });
+
+    const availForPct = Math.max(0, baseIncome - fixedSum);
+    const roundedPctSum = Math.round(pctSum * 10) / 10;
+    const remainingPct = Math.round((100 - roundedPctSum) * 10) / 10;
+    const remainingBaht = Math.round(((remainingPct / 100) * availForPct) * 100) / 100;
+
+    // Estimate for current pocket
+    const currentRule = formData.rules?.[mode] || { mode: 'percent_remaining', value: 0 };
+    const currentPocketAmount = currentRule.mode === 'fixed'
+      ? Number(currentRule.value) || 0
+      : Math.round(((Number(currentRule.value) || 0) / 100) * availForPct);
+
+    return {
+      baseIncome,
+      fixedSum,
+      availForPct,
+      pctSum: roundedPctSum,
+      remainingPct,
+      remainingBaht,
+      currentPocketAmount
+    };
   };
 
   const handleStartAdd = () => {
@@ -126,24 +160,14 @@ export function PocketManager({ pockets, setPockets, incomeAmount }) {
     }
   };
 
-  const calculateModeStats = (mode) => {
-    let fixSum = 0;
-    let pctSum = 0;
-    pockets.filter(p => p.isActive).forEach(p => {
-      const rule = p.rules?.[mode] || { mode: 'percent_remaining', value: 0 };
-      if (rule.mode === 'fixed') fixSum += Number(rule.value) || 0;
-      else pctSum += Number(rule.value) || 0;
-    });
-    return { fixSum, pctSum: Math.round(pctSum * 10) / 10 };
-  };
-
-  const r10Stats = calculateModeStats('round10');
-  const r25Stats = calculateModeStats('round25');
-  const specialStats = calculateModeStats('special');
-
   const filteredPockets = selectedCategoryFilter === 'all'
     ? pockets
     : pockets.filter(p => p.categoryId === selectedCategoryFilter);
+
+  // Render stats for each mode in form
+  const r10FormStats = getFormModeStats('round10');
+  const r25FormStats = getFormModeStats('round25');
+  const specFormStats = getFormModeStats('special');
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -157,7 +181,7 @@ export function PocketManager({ pockets, setPockets, incomeAmount }) {
               <span>จัดการ Cloud Pockets & กฎการกระจายเงิน</span>
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              กำหนดสัดส่วน %, ยอด Fix Cost และดูจำนวนเงินจำลองตามฐานเงินเดือนได้แบบ Real-time
+              กำหนดสัดส่วน %, ยอด Fix Cost และดูสัดส่วนคงเหลือ/ยอดเงินที่แบ่งได้แบบ Real-time
             </p>
           </div>
 
@@ -183,42 +207,57 @@ export function PocketManager({ pockets, setPockets, incomeAmount }) {
 
         {/* Allocation Rules Check Matrix */}
         <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/70">
-            <div className="font-semibold text-slate-700 mb-1 flex items-center justify-between">
-              <span>🗓️ รอบ 10 (ฐาน ฿6,000)</span>
-              <span className={r10Stats.pctSum === 100 ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold'}>
-                {r10Stats.pctSum}%
+          {/* Round 10 */}
+          <div className={`p-3.5 rounded-xl border ${
+            r10Alloc.summary.unallocatedAmount > 0 ? 'bg-blue-50/70 border-blue-200' : r10Alloc.summary.totalPercentConfigured > 100 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-200/70'
+          }`}>
+            <div className="font-bold text-slate-800 mb-1 flex items-center justify-between">
+              <span>🗓️ รอบ 10 (ฐาน {formatMoney(base10)})</span>
+              <span className={`font-bold px-1.5 py-0.5 rounded ${
+                r10Alloc.summary.totalPercentConfigured === 100 ? 'text-emerald-700 bg-emerald-100' : 'text-amber-800 bg-amber-100'
+              }`}>
+                รวม {r10Alloc.summary.totalPercentConfigured}%
               </span>
             </div>
-            <div className="flex justify-between text-slate-500">
-              <span>Fixed: <b>{formatMoney(r10Stats.fixSum)}</b></span>
-              <span>เหลือแบ่ง: <b>{formatMoney(Math.max(0, 6000 - r10Stats.fixSum))}</b></span>
+            <div className="flex justify-between text-slate-500 mt-1">
+              <span>Fixed: <b>{formatMoney(r10Alloc.summary.totalFixed)}</b></span>
+              <span>เหลือแบ่งได้: <b className="text-slate-700">{formatMoney(r10Alloc.summary.unallocatedAmount)}</b></span>
             </div>
           </div>
 
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/70">
-            <div className="font-semibold text-slate-700 mb-1 flex items-center justify-between">
-              <span>📅 รอบ 25 (ฐาน ฿6,000)</span>
-              <span className={r25Stats.pctSum === 100 ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold'}>
-                {r25Stats.pctSum}%
+          {/* Round 25 */}
+          <div className={`p-3.5 rounded-xl border ${
+            r25Alloc.summary.unallocatedAmount > 0 ? 'bg-blue-50/70 border-blue-200' : r25Alloc.summary.totalPercentConfigured > 100 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-200/70'
+          }`}>
+            <div className="font-bold text-slate-800 mb-1 flex items-center justify-between">
+              <span>📅 รอบ 25 (ฐาน {formatMoney(base25)})</span>
+              <span className={`font-bold px-1.5 py-0.5 rounded ${
+                r25Alloc.summary.totalPercentConfigured === 100 ? 'text-emerald-700 bg-emerald-100' : 'text-amber-800 bg-amber-100'
+              }`}>
+                รวม {r25Alloc.summary.totalPercentConfigured}%
               </span>
             </div>
-            <div className="flex justify-between text-slate-500">
-              <span>Fixed: <b>{formatMoney(r25Stats.fixSum)}</b></span>
-              <span>เหลือแบ่ง: <b>{formatMoney(Math.max(0, 6000 - r25Stats.fixSum))}</b></span>
+            <div className="flex justify-between text-slate-500 mt-1">
+              <span>Fixed: <b>{formatMoney(r25Alloc.summary.totalFixed)}</b></span>
+              <span>เหลือแบ่งได้: <b className="text-slate-700">{formatMoney(r25Alloc.summary.unallocatedAmount)}</b></span>
             </div>
           </div>
 
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/70">
-            <div className="font-semibold text-slate-700 mb-1 flex items-center justify-between">
-              <span>✨ เงินพิเศษ (ฐาน ฿5,000)</span>
-              <span className={specialStats.pctSum === 100 ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold'}>
-                {specialStats.pctSum}%
+          {/* Special */}
+          <div className={`p-3.5 rounded-xl border ${
+            specAlloc.summary.unallocatedAmount > 0 ? 'bg-blue-50/70 border-blue-200' : specAlloc.summary.totalPercentConfigured > 100 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-200/70'
+          }`}>
+            <div className="font-bold text-slate-800 mb-1 flex items-center justify-between">
+              <span>✨ เงินพิเศษ (ฐาน {formatMoney(baseSpecial)})</span>
+              <span className={`font-bold px-1.5 py-0.5 rounded ${
+                specAlloc.summary.totalPercentConfigured === 100 ? 'text-emerald-700 bg-emerald-100' : 'text-amber-800 bg-amber-100'
+              }`}>
+                รวม {specAlloc.summary.totalPercentConfigured}%
               </span>
             </div>
-            <div className="flex justify-between text-slate-500">
-              <span>Fixed: <b>{formatMoney(specialStats.fixSum)}</b></span>
-              <span>เหลือแบ่ง: <b>{formatMoney(Math.max(0, 5000 - specialStats.fixSum))}</b></span>
+            <div className="flex justify-between text-slate-500 mt-1">
+              <span>Fixed: <b>{formatMoney(specAlloc.summary.totalFixed)}</b></span>
+              <span>เหลือแบ่งได้: <b className="text-slate-700">{formatMoney(specAlloc.summary.unallocatedAmount)}</b></span>
             </div>
           </div>
         </div>
@@ -282,7 +321,7 @@ export function PocketManager({ pockets, setPockets, incomeAmount }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
             
-            {/* Emoji picker simple */}
+            {/* Emoji picker */}
             <div className="sm:col-span-2">
               <label className="text-xs font-semibold text-slate-600 block mb-1">ไอคอน</label>
               <input
@@ -337,169 +376,227 @@ export function PocketManager({ pockets, setPockets, incomeAmount }) {
 
           </div>
 
-          {/* Allocation Rules for 3 modes with Live Baht Amount Calculator */}
+          {/* Allocation Rules for 3 modes with Live Remaining % & Remaining Baht */}
           <div className="pt-3 border-t border-slate-100">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                ตั้งค่าสูตรการกระจายเงิน & จำนวนเงินโดยประมาณ (3 โหมด)
-              </h4>
-            </div>
+            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+              ตั้งค่าสูตรการกระจายเงิน (3 โหมด)
+            </h4>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
               
-              {/* Round 10 */}
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-800">
-                    🗓️ รอบวันที่ 10
-                  </span>
-                  <span className="text-xs font-bold font-mono-numeric text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-md">
-                    ≈ {formatMoney(getFormEstimate('round10'))}
-                  </span>
+              {/* --- ROUND 10 --- */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-800">
+                      🗓️ รอบวันที่ 10
+                    </span>
+                    <span className="text-xs font-bold font-mono-numeric text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">
+                      ≈ {formatMoney(r10FormStats.currentPocketAmount)}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <select
+                      value={formData.rules.round10.mode}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        rules: {
+                          ...formData.rules,
+                          round10: { ...formData.rules.round10, mode: e.target.value }
+                        }
+                      })}
+                      className="w-full text-xs px-2 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="percent_remaining">% ของเงินที่เหลือ</option>
+                      <option value="fixed">Fixed ยอดคงที่ (บาท)</option>
+                    </select>
+
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        value={formData.rules.round10.value}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          rules: {
+                            ...formData.rules,
+                            round10: { ...formData.rules.round10, value: Number(e.target.value) }
+                          }
+                        })}
+                        className="w-full px-3 py-1.5 pr-8 bg-white border border-slate-200 rounded-lg text-sm font-bold font-mono-numeric focus:outline-none focus:border-amber-500"
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">
+                        {formData.rules.round10.mode === 'fixed' ? '฿' : '%'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2 mb-2">
-                  <select
-                    value={formData.rules.round10.mode}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      rules: {
-                        ...formData.rules,
-                        round10: { ...formData.rules.round10, mode: e.target.value }
-                      }
-                    })}
-                    className="w-full text-xs px-2 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="percent_remaining">% ของเงินที่เหลือ</option>
-                    <option value="fixed">Fixed ยอดคงที่ (บาท)</option>
-                  </select>
-                </div>
-                
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    value={formData.rules.round10.value}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      rules: {
-                        ...formData.rules,
-                        round10: { ...formData.rules.round10, value: Number(e.target.value) }
-                      }
-                    })}
-                    className="w-full px-3 py-1.5 pr-8 bg-white border border-slate-200 rounded-lg text-sm font-bold font-mono-numeric focus:outline-none focus:border-amber-500"
-                  />
-                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">
-                    {formData.rules.round10.mode === 'fixed' ? '฿' : '%'}
-                  </span>
-                </div>
-                <div className="text-[10px] text-slate-400 mt-1">
-                  (คำนวณจากฐานเงินเดือน ฿6,000)
+                {/* Remaining % and Baht Badge */}
+                <div className={`text-[11px] p-2 rounded-lg border leading-tight ${
+                  r10FormStats.remainingPct === 0
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : r10FormStats.remainingPct > 0
+                    ? 'bg-blue-50 border-blue-200 text-blue-800'
+                    : 'bg-rose-50 border-rose-200 text-rose-800'
+                }`}>
+                  <div className="font-semibold flex items-center justify-between">
+                    <span>สัดส่วนรวม: {r10FormStats.pctSum}%</span>
+                    <span>{r10FormStats.remainingPct === 0 ? '✅ ครบ 100%' : r10FormStats.remainingPct > 0 ? `เหลืออีก ${r10FormStats.remainingPct}%` : `เกินมา ${Math.abs(r10FormStats.remainingPct)}%`}</span>
+                  </div>
+                  <div className="text-[10px] mt-0.5 opacity-90">
+                    {r10FormStats.remainingPct > 0
+                      ? `ยังเหลือแบ่งได้อีก ≈ ${formatMoney(r10FormStats.remainingBaht)}`
+                      : r10FormStats.remainingPct < 0
+                      ? `ยอดเงินเกินงบ ≈ ${formatMoney(Math.abs(r10FormStats.remainingBaht))}`
+                      : 'ยอดจัดสรรลงตัวพอดี 100%'}
+                  </div>
                 </div>
               </div>
 
-              {/* Round 25 */}
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-800">
-                    📅 รอบวันที่ 25
-                  </span>
-                  <span className="text-xs font-bold font-mono-numeric text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-md">
-                    ≈ {formatMoney(getFormEstimate('round25'))}
-                  </span>
+              {/* --- ROUND 25 --- */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-800">
+                      📅 รอบวันที่ 25
+                    </span>
+                    <span className="text-xs font-bold font-mono-numeric text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">
+                      ≈ {formatMoney(r25FormStats.currentPocketAmount)}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <select
+                      value={formData.rules.round25.mode}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        rules: {
+                          ...formData.rules,
+                          round25: { ...formData.rules.round25, mode: e.target.value }
+                        }
+                      })}
+                      className="w-full text-xs px-2 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="percent_remaining">% ของเงินที่เหลือ</option>
+                      <option value="fixed">Fixed ยอดคงที่ (บาท)</option>
+                    </select>
+
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        value={formData.rules.round25.value}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          rules: {
+                            ...formData.rules,
+                            round25: { ...formData.rules.round25, value: Number(e.target.value) }
+                          }
+                        })}
+                        className="w-full px-3 py-1.5 pr-8 bg-white border border-slate-200 rounded-lg text-sm font-bold font-mono-numeric focus:outline-none focus:border-amber-500"
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">
+                        {formData.rules.round25.mode === 'fixed' ? '฿' : '%'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2 mb-2">
-                  <select
-                    value={formData.rules.round25.mode}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      rules: {
-                        ...formData.rules,
-                        round25: { ...formData.rules.round25, mode: e.target.value }
-                      }
-                    })}
-                    className="w-full text-xs px-2 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="percent_remaining">% ของเงินที่เหลือ</option>
-                    <option value="fixed">Fixed ยอดคงที่ (บาท)</option>
-                  </select>
-                </div>
-                
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    value={formData.rules.round25.value}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      rules: {
-                        ...formData.rules,
-                        round25: { ...formData.rules.round25, value: Number(e.target.value) }
-                      }
-                    })}
-                    className="w-full px-3 py-1.5 pr-8 bg-white border border-slate-200 rounded-lg text-sm font-bold font-mono-numeric focus:outline-none focus:border-amber-500"
-                  />
-                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">
-                    {formData.rules.round25.mode === 'fixed' ? '฿' : '%'}
-                  </span>
-                </div>
-                <div className="text-[10px] text-slate-400 mt-1">
-                  (คำนวณจากฐานเงินเดือน ฿6,000)
+                {/* Remaining % and Baht Badge */}
+                <div className={`text-[11px] p-2 rounded-lg border leading-tight ${
+                  r25FormStats.remainingPct === 0
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : r25FormStats.remainingPct > 0
+                    ? 'bg-blue-50 border-blue-200 text-blue-800'
+                    : 'bg-rose-50 border-rose-200 text-rose-800'
+                }`}>
+                  <div className="font-semibold flex items-center justify-between">
+                    <span>สัดส่วนรวม: {r25FormStats.pctSum}%</span>
+                    <span>{r25FormStats.remainingPct === 0 ? '✅ ครบ 100%' : r25FormStats.remainingPct > 0 ? `เหลืออีก ${r25FormStats.remainingPct}%` : `เกินมา ${Math.abs(r25FormStats.remainingPct)}%`}</span>
+                  </div>
+                  <div className="text-[10px] mt-0.5 opacity-90">
+                    {r25FormStats.remainingPct > 0
+                      ? `ยังเหลือแบ่งได้อีก ≈ ${formatMoney(r25FormStats.remainingBaht)}`
+                      : r25FormStats.remainingPct < 0
+                      ? `ยอดเงินเกินงบ ≈ ${formatMoney(Math.abs(r25FormStats.remainingBaht))}`
+                      : 'ยอดจัดสรรลงตัวพอดี 100%'}
+                  </div>
                 </div>
               </div>
 
-              {/* Special */}
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-800">
-                    ✨ เงินพิเศษ
-                  </span>
-                  <span className="text-xs font-bold font-mono-numeric text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-md">
-                    ≈ {formatMoney(getFormEstimate('special'))}
-                  </span>
+              {/* --- SPECIAL --- */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-800">
+                      ✨ เงินพิเศษ
+                    </span>
+                    <span className="text-xs font-bold font-mono-numeric text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">
+                      ≈ {formatMoney(specFormStats.currentPocketAmount)}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <select
+                      value={formData.rules.special.mode}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        rules: {
+                          ...formData.rules,
+                          special: { ...formData.rules.special, mode: e.target.value }
+                        }
+                      })}
+                      className="w-full text-xs px-2 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="percent_remaining">% ของเงินที่เหลือ</option>
+                      <option value="fixed">Fixed ยอดคงที่ (บาท)</option>
+                    </select>
+
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        value={formData.rules.special.value}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          rules: {
+                            ...formData.rules,
+                            special: { ...formData.rules.special, value: Number(e.target.value) }
+                          }
+                        })}
+                        className="w-full px-3 py-1.5 pr-8 bg-white border border-slate-200 rounded-lg text-sm font-bold font-mono-numeric focus:outline-none focus:border-amber-500"
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">
+                        {formData.rules.special.mode === 'fixed' ? '฿' : '%'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2 mb-2">
-                  <select
-                    value={formData.rules.special.mode}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      rules: {
-                        ...formData.rules,
-                        special: { ...formData.rules.special, mode: e.target.value }
-                      }
-                    })}
-                    className="w-full text-xs px-2 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="percent_remaining">% ของเงินที่เหลือ</option>
-                    <option value="fixed">Fixed ยอดคงที่ (บาท)</option>
-                  </select>
-                </div>
-                
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    value={formData.rules.special.value}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      rules: {
-                        ...formData.rules,
-                        special: { ...formData.rules.special, value: Number(e.target.value) }
-                      }
-                    })}
-                    className="w-full px-3 py-1.5 pr-8 bg-white border border-slate-200 rounded-lg text-sm font-bold font-mono-numeric focus:outline-none focus:border-amber-500"
-                  />
-                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">
-                    {formData.rules.special.mode === 'fixed' ? '฿' : '%'}
-                  </span>
-                </div>
-                <div className="text-[10px] text-slate-400 mt-1">
-                  (คำนวณจากฐานเงินพิเศษ ฿5,000)
+                {/* Remaining % and Baht Badge */}
+                <div className={`text-[11px] p-2 rounded-lg border leading-tight ${
+                  specFormStats.remainingPct === 0
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : specFormStats.remainingPct > 0
+                    ? 'bg-blue-50 border-blue-200 text-blue-800'
+                    : 'bg-rose-50 border-rose-200 text-rose-800'
+                }`}>
+                  <div className="font-semibold flex items-center justify-between">
+                    <span>สัดส่วนรวม: {specFormStats.pctSum}%</span>
+                    <span>{specFormStats.remainingPct === 0 ? '✅ ครบ 100%' : specFormStats.remainingPct > 0 ? `เหลืออีก ${specFormStats.remainingPct}%` : `เกินมา ${Math.abs(specFormStats.remainingPct)}%`}</span>
+                  </div>
+                  <div className="text-[10px] mt-0.5 opacity-90">
+                    {specFormStats.remainingPct > 0
+                      ? `ยังเหลือแบ่งได้อีก ≈ ${formatMoney(specFormStats.remainingBaht)}`
+                      : specFormStats.remainingPct < 0
+                      ? `ยอดเงินเกินงบ ≈ ${formatMoney(Math.abs(specFormStats.remainingBaht))}`
+                      : 'ยอดจัดสรรลงตัวพอดี 100%'}
+                  </div>
                 </div>
               </div>
 
