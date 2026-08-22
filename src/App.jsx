@@ -10,19 +10,11 @@ import { HistoryLog } from './components/HistoryLog';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('calculator');
-  const [pockets, setPockets] = useLocalStorage('make_pockets_v2', DEFAULT_POCKETS);
+  const [pockets, setPockets] = useLocalStorage('make_pockets_v3', DEFAULT_POCKETS);
   const [currentMode, setCurrentMode] = useLocalStorage('make_current_mode', 'round10');
   const [incomeAmount, setIncomeAmount] = useLocalStorage('make_income_amount', 6000);
   const [history, setHistory] = useLocalStorage('make_history_v1', []);
   const [checkedPockets, setCheckedPockets] = useLocalStorage('make_checked_pockets', {});
-
-  // Auto-migration check: If old single "p_zero1" with name "Zero 1-5" is present, update to separate Zero 1 - 5
-  useEffect(() => {
-    const hasOldZero = pockets.some(p => p.id === 'p_zero1' && p.name.includes('1-5'));
-    if (hasOldZero) {
-      setPockets(DEFAULT_POCKETS);
-    }
-  }, [pockets, setPockets]);
 
   // Compute live allocation
   const calculation = useMemo(() => {
@@ -33,7 +25,7 @@ export default function App() {
   const handleExportBackup = () => {
     const backupData = {
       app: 'MAKE Pocket Planner',
-      version: '1.1',
+      version: '1.2',
       exportDate: new Date().toISOString(),
       pockets,
       currentMode,
@@ -64,7 +56,7 @@ export default function App() {
 
   // Reset to default
   const handleResetDefaults = () => {
-    if (window.confirm('คุณต้องการรีเซ็ตกระเป๋าและกฎทั้งหมดกลับเป็นค่าเริ่มต้น 5 หมวดหมู่ (Squirrel, Rhino, Cat, Bee [Zero 1-5], Shark) หรือไม่?')) {
+    if (window.confirm('คุณต้องการรีเซ็ตกระเป๋าและกฎทั้งหมดกลับเป็นค่าเริ่มต้น (รวม 1Life 10% ในเงินพิเศษ และ Zero 1-5) หรือไม่?')) {
       setPockets(DEFAULT_POCKETS);
       setCheckedPockets({});
     }

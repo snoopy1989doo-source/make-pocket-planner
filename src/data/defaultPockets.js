@@ -72,13 +72,13 @@ export const DEFAULT_POCKETS = [
     id: 'p_1life',
     name: '1Life',
     categoryId: 'squirrel',
-    description: 'ใช้จ่ายจำเป็น เช่น ค่ากินประจำวันรายปักษ์',
+    description: 'ใช้จ่ายจำเป็น เช่น ค่ากินประจำวัน/มื้อพิเศษ',
     emoji: '🍱',
     isActive: true,
     rules: {
       round10: { mode: 'percent_remaining', value: 50 }, // 50% ของเงินที่เหลือหลังหัก Fix
       round25: { mode: 'percent_remaining', value: 50 },
-      special: { mode: 'percent_remaining', value: 0 }  // เงินพิเศษ
+      special: { mode: 'percent_remaining', value: 10 }  // เงินพิเศษเติมค่ากิน/มื้อพิเศษ 10%
     }
   },
   {
@@ -106,7 +106,7 @@ export const DEFAULT_POCKETS = [
     rules: {
       round10: { mode: 'fixed', value: 0 },
       round25: { mode: 'fixed', value: 300 }, // ทยอยเก็บรอบปลายเดือน
-      special: { mode: 'percent_remaining', value: 10 }
+      special: { mode: 'percent_remaining', value: 5 }
     }
   },
   {
@@ -119,7 +119,7 @@ export const DEFAULT_POCKETS = [
     rules: {
       round10: { mode: 'fixed', value: 0 },
       round25: { mode: 'fixed', value: 200 },
-      special: { mode: 'percent_remaining', value: 10 }
+      special: { mode: 'percent_remaining', value: 5 }
     }
   },
 
@@ -151,7 +151,7 @@ export const DEFAULT_POCKETS = [
     }
   },
 
-  // --- BEE (🐝) - Zero 1 ถึง Zero 5 แยกรายกระเป๋า ---
+  // --- BEE (🐝) - Zero 1 ถึง Zero 5 แยกรายกระเป๋า (รวม 40% ในเงินพิเศษ) ---
   {
     id: 'p_zero1',
     name: 'Zero 1',
@@ -227,7 +227,7 @@ export const DEFAULT_POCKETS = [
     rules: {
       round10: { mode: 'percent_remaining', value: 4 },
       round25: { mode: 'percent_remaining', value: 4 },
-      special: { mode: 'percent_remaining', value: 8 }
+      special: { mode: 'percent_remaining', value: 6 }
     }
   },
   {
@@ -240,7 +240,7 @@ export const DEFAULT_POCKETS = [
     rules: {
       round10: { mode: 'percent_remaining', value: 4 },
       round25: { mode: 'percent_remaining', value: 4 },
-      special: { mode: 'percent_remaining', value: 8 }
+      special: { mode: 'percent_remaining', value: 6 }
     }
   },
   {
@@ -253,7 +253,7 @@ export const DEFAULT_POCKETS = [
     rules: {
       round10: { mode: 'percent_remaining', value: 4 },
       round25: { mode: 'percent_remaining', value: 4 },
-      special: { mode: 'percent_remaining', value: 8 }
+      special: { mode: 'percent_remaining', value: 6 }
     }
   },
   {
@@ -266,7 +266,7 @@ export const DEFAULT_POCKETS = [
     rules: {
       round10: { mode: 'percent_remaining', value: 4 },
       round25: { mode: 'percent_remaining', value: 4 },
-      special: { mode: 'percent_remaining', value: 10 }
+      special: { mode: 'percent_remaining', value: 6 }
     }
   },
   {
@@ -279,11 +279,11 @@ export const DEFAULT_POCKETS = [
     rules: {
       round10: { mode: 'percent_remaining', value: 4 },
       round25: { mode: 'percent_remaining', value: 4 },
-      special: { mode: 'percent_remaining', value: 8 }
+      special: { mode: 'percent_remaining', value: 6 }
     }
   },
 
-  // --- SHARK (🦈) ---
+  // --- SHARK (🦈) - รวม 20% ในเงินพิเศษ ---
   {
     id: 'p_life',
     name: 'Life (เทรดมือ)',
@@ -294,7 +294,7 @@ export const DEFAULT_POCKETS = [
     rules: {
       round10: { mode: 'percent_remaining', value: 2 },
       round25: { mode: 'percent_remaining', value: 2 },
-      special: { mode: 'percent_remaining', value: 5 }
+      special: { mode: 'percent_remaining', value: 4 }
     }
   },
   {
@@ -307,7 +307,7 @@ export const DEFAULT_POCKETS = [
     rules: {
       round10: { mode: 'percent_remaining', value: 1.5 },
       round25: { mode: 'percent_remaining', value: 1.5 },
-      special: { mode: 'percent_remaining', value: 5 }
+      special: { mode: 'percent_remaining', value: 4 }
     }
   },
   {
@@ -346,7 +346,7 @@ export const DEFAULT_POCKETS = [
     rules: {
       round10: { mode: 'percent_remaining', value: 1 },
       round25: { mode: 'percent_remaining', value: 1 },
-      special: { mode: 'percent_remaining', value: 4 }
+      special: { mode: 'percent_remaining', value: 3 }
     }
   },
   {
@@ -359,7 +359,7 @@ export const DEFAULT_POCKETS = [
     rules: {
       round10: { mode: 'percent_remaining', value: 1 },
       round25: { mode: 'percent_remaining', value: 1 },
-      special: { mode: 'percent_remaining', value: 3 }
+      special: { mode: 'percent_remaining', value: 2 }
     }
   }
 ];
@@ -387,6 +387,6 @@ export const ROUND_PRESETS = [
     shortName: 'เงินพิเศษ',
     defaultAmount: 5000,
     icon: '✨',
-    description: 'โบนัส, กำไรเทรด, งานนอก, เงินปันผล เน้นเข้าพอร์ต Bee, Shark และ Cat'
+    description: 'โบนัส, กำไรเทรด, งานนอก เติมค่ากินพิเศษ 10% + พอร์ตลงทุน Bee 40% + Shark 20% + Cat 20% + Rhino 10%'
   }
 ];
