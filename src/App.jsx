@@ -1,12 +1,18 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { DEFAULT_POCKETS, CATEGORIES } from './data/defaultPockets';
+import { DEFAULT_POCKETS, CATEGORIES, ROUND_PRESETS } from './data/defaultPockets';
 import { calculateAllocation } from './utils/allocationEngine';
 import { Header } from './components/Header';
 import { AllocationCalculator } from './components/AllocationCalculator';
 import { TransferChecklist } from './components/TransferChecklist';
 import { PocketManager } from './components/PocketManager';
 import { HistoryLog } from './components/HistoryLog';
+
+const DEFAULT_ROUND_DESCRIPTIONS = {
+  round10: 'เงินเดือนครึ่งแรก หัก Fix Cost (1,500) และกระจายใช้จ่าย/ลงทุนครึ่งเดือนแรก',
+  round25: 'เงินเดือนครึ่งหลัง หัก Fix Cost (1,500) + กยศ./หนี้ และกระจายใช้จ่าย/ลงทุนครึ่งเดือนหลัง',
+  special: 'โบนัส, กำไรเทรด, งานนอก เติมค่ากินพิเศษ 10% + พอร์ตลงทุน Bee 40% + Shark 20% + Cat 20% + Rhino 10%'
+};
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('calculator');
@@ -19,6 +25,9 @@ export default function App() {
     round25: 6000,
     special: 5000
   });
+
+  // Custom editable pinned notes for each round
+  const [roundDescriptions, setRoundDescriptions] = useLocalStorage('make_round_descriptions_v1', DEFAULT_ROUND_DESCRIPTIONS);
 
   const [history, setHistory] = useLocalStorage('make_history_v1', []);
   const [checkedPockets, setCheckedPockets] = useLocalStorage('make_checked_pockets', {});
@@ -36,6 +45,20 @@ export default function App() {
     }));
   };
 
+  const handleUpdateDescription = (mode, text) => {
+    setRoundDescriptions(prev => ({
+      ...prev,
+      [mode]: text
+    }));
+  };
+
+  const handleResetDescription = (mode) => {
+    setRoundDescriptions(prev => ({
+      ...prev,
+      [mode]: DEFAULT_ROUND_DESCRIPTIONS[mode]
+    }));
+  };
+
   // Compute live allocation
   const calculation = useMemo(() => {
     return calculateAllocation(currentIncomeAmount, currentMode, pockets);
@@ -45,11 +68,12 @@ export default function App() {
   const handleExportBackup = () => {
     const backupData = {
       app: 'MAKE Pocket Planner',
-      version: '1.3',
+      version: '1.4',
       exportDate: new Date().toISOString(),
       pockets,
       currentMode,
       incomeAmounts,
+      roundDescriptions,
       history
     };
     const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
@@ -67,13 +91,7 @@ export default function App() {
       setPockets(data.pockets);
       if (data.history) setHistory(data.history);
       if (data.incomeAmounts) setIncomeAmounts(data.incomeAmounts);
-      else if (data.incomeAmount) {
-        setIncomeAmounts({
-          round10: data.incomeAmount,
-          round25: data.incomeAmount,
-          special: 5000
-        });
-      }
+      if (data.roundDescriptions) setRoundDescriptions(data.roundDescriptions);
       if (data.currentMode) setCurrentMode(data.currentMode);
       alert('นำเข้าข้อมูลสำเร็จเรียบร้อย!');
     } else {
@@ -91,6 +109,7 @@ export default function App() {
         round25: 6000,
         special: 5000
       });
+      setRoundDescriptions(DEFAULT_ROUND_DESCRIPTIONS);
     }
   };
 
@@ -125,6 +144,9 @@ export default function App() {
             incomeAmount={currentIncomeAmount}
             setIncomeAmount={handleSetIncomeAmount}
             calculation={calculation}
+            roundDescriptions={roundDescriptions}
+            onUpdateDescription={handleUpdateDescription}
+            onResetDescription={handleResetDescription}
             onGoToChecklist={() => setActiveTab('checklist')}
             onSaveToHistory={handleSaveToHistory}
           />
