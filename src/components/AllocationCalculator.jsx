@@ -90,7 +90,7 @@ export function AllocationCalculator({
       summary: calculation.summary,
       pocketResults: calculation.pocketResults,
       categoryBreakdown: calculation.categoryBreakdown,
-      note: note.trim()
+      note: note.trim() || `จัดสรร ${currentPresetInfo?.shortName || currentMode} (${formatMoney(calculation.income)})`
     });
     setSaveSuccess(true);
     setNote('');
@@ -284,6 +284,39 @@ export function AllocationCalculator({
             <span className="text-base sm:text-lg font-bold font-mono-numeric">
               {formatMoney(calculation.summary.unallocatedAmount)}
             </span>
+          </div>
+        </div>
+
+        {/* Top Quick Action Bar */}
+        <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+          <span className="text-xs text-slate-400">
+            💡 เมื่อคำนวณแล้ว สามารถกดบันทึกลงประวัติ หรือเริ่มโอนเงินเข้า MAKE ได้ทันที
+          </span>
+          <div className="flex items-center gap-2 justify-end">
+            <button
+              onClick={handleSave}
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
+            >
+              {saveSuccess ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span className="text-emerald-700">บันทึกแล้ว!</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 text-amber-600" />
+                  <span>บันทึกลงประวัติ</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={onGoToChecklist}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-all"
+            >
+              <span>ไปหน้าโอนเงิน MAKE</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 

@@ -5,6 +5,7 @@ import { calculateAllocation } from './utils/allocationEngine';
 import { Header } from './components/Header';
 import { AllocationCalculator } from './components/AllocationCalculator';
 import { TransferChecklist } from './components/TransferChecklist';
+import { SelfLoanTracker } from './components/SelfLoanTracker';
 import { PocketManager } from './components/PocketManager';
 import { HistoryLog } from './components/HistoryLog';
 
@@ -13,6 +14,21 @@ const DEFAULT_ROUND_DESCRIPTIONS = {
   round25: 'เงินเดือนครึ่งหลัง หัก Fix Cost (1,500) + กยศ./หนี้ และกระจายใช้จ่าย/ลงทุนครึ่งเดือนหลัง',
   special: 'โบนัส, กำไรเทรด, งานนอก เติมค่ากินพิเศษ 10% + พอร์ตลงทุน Bee 40% + Shark 20% + Cat 20% + Rhino 10%'
 };
+
+const DEFAULT_LOANS = [
+  {
+    id: 'loan_1',
+    title: 'คืน Kept',
+    sourceName: 'Kept by krungsri',
+    totalAmount: 1500,
+    paidAmount: 500,
+    repayMode: 'installment',
+    amountPerRound: 500,
+    repaySchedule: 'all',
+    note: 'ยืมสำรองจ่ายฉุกเฉิน ทยอยคืนรอบละ 500',
+    isCompleted: false
+  }
+];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('calculator');
@@ -29,8 +45,17 @@ export default function App() {
   // Custom editable pinned notes for each round
   const [roundDescriptions, setRoundDescriptions] = useLocalStorage('make_round_descriptions_v1', DEFAULT_ROUND_DESCRIPTIONS);
 
+  // Self-loans tracker
+  const [loans, setLoans] = useLocalStorage('make_self_loans_v1', DEFAULT_LOANS);
+
   const [history, setHistory] = useLocalStorage('make_history_v1', []);
-  const [checkedPockets, setCheckedPockets] = useLocalStorage('make_checked_pockets', {});
+  
+  // Isolate checked state for each round so Round 25 doesn't affect Round 10!
+  const [checkedPocketsByRound, setCheckedPocketsByRound] = useLocalStorage('make_checked_by_round_v2', {
+    round10: {},
+    round25: {},
+    special: {}
+  });
 
   // Get current active income amount for the selected mode
   const currentIncomeAmount = incomeAmounts[currentMode] !== undefined
@@ -68,12 +93,14 @@ export default function App() {
   const handleExportBackup = () => {
     const backupData = {
       app: 'MAKE Pocket Planner',
-      version: '1.4',
+      version: '1.5',
       exportDate: new Date().toISOString(),
       pockets,
       currentMode,
       incomeAmounts,
       roundDescriptions,
+      loans,
+      checkedPocketsByRound,
       history
     };
     const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
@@ -92,6 +119,8 @@ export default function App() {
       if (data.history) setHistory(data.history);
       if (data.incomeAmounts) setIncomeAmounts(data.incomeAmounts);
       if (data.roundDescriptions) setRoundDescriptions(data.roundDescriptions);
+      if (data.loans) setLoans(data.loans);
+      if (data.checkedPocketsByRound) setCheckedPocketsByRound(data.checkedPocketsByRound);
       if (data.currentMode) setCurrentMode(data.currentMode);
       alert('นำเข้าข้อมูลสำเร็จเรียบร้อย!');
     } else {
@@ -103,7 +132,11 @@ export default function App() {
   const handleResetDefaults = () => {
     if (window.confirm('คุณต้องการรีเซ็ตกระเป๋าและกฎทั้งหมดกลับเป็นค่าเริ่มต้น 5 หมวดหมู่ (Squirrel, Rhino, Cat, Bee, Shark) หรือไม่?')) {
       setPockets(DEFAULT_POCKETS);
-      setCheckedPockets({});
+      setCheckedPocketsByRound({
+        round10: {},
+        round25: {},
+        special: {}
+      });
       setIncomeAmounts({
         round10: 6000,
         round25: 6000,
@@ -123,6 +156,8 @@ export default function App() {
     setHistory(prev => [newEntry, ...prev]);
   };
 
+  const activeLoanCount = loans.filter(l => !l.isCompleted).length;
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
       
@@ -133,6 +168,7 @@ export default function App() {
         onExport={handleExportBackup}
         onImport={handleImportBackup}
         onResetDefaults={handleResetDefaults}
+        activeLoanCount={activeLoanCount}
       />
 
       {/* Main Content Area */}
@@ -159,9 +195,17 @@ export default function App() {
             setCurrentMode={setCurrentMode}
             incomeAmount={currentIncomeAmount}
             setIncomeAmount={handleSetIncomeAmount}
-            checkedPockets={checkedPockets}
-            setCheckedPockets={setCheckedPockets}
+            checkedPocketsByRound={checkedPocketsByRound}
+            setCheckedPocketsByRound={setCheckedPocketsByRound}
             onBackToCalculator={() => setActiveTab('calculator')}
+            onSaveToHistory={handleSaveToHistory}
+          />
+        )}
+
+        {activeTab === 'loans' && (
+          <SelfLoanTracker
+            loans={loans}
+            setLoans={setLoans}
           />
         )}
 

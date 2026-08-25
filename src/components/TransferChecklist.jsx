@@ -11,7 +11,8 @@ import {
   ChevronRight,
   TrendingUp,
   Eye,
-  EyeOff
+  EyeOff,
+  Save
 } from 'lucide-react';
 import { formatMoney } from '../utils/allocationEngine';
 import { CATEGORIES, ROUND_PRESETS } from '../data/defaultPockets';
@@ -22,25 +23,30 @@ export function TransferChecklist({
   setCurrentMode,
   incomeAmount,
   setIncomeAmount,
-  checkedPockets,
-  setCheckedPockets,
-  onBackToCalculator
+  checkedPocketsByRound = {},
+  setCheckedPocketsByRound,
+  onBackToCalculator,
+  onSaveToHistory
 }) {
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'pending' | 'completed'
   const [showZeroAmount, setShowZeroAmount] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  const [savedSuccess, setSavedSuccess] = useState(false);
+
+  // Isolate checked state for this specific round
+  const currentRoundChecks = checkedPocketsByRound[currentMode] || {};
 
   const allActivePockets = calculation.pocketResults;
   const nonZeroPockets = allActivePockets.filter(p => p.allocatedAmount > 0);
   
   const displayPockets = showZeroAmount ? allActivePockets : nonZeroPockets;
   const totalCount = nonZeroPockets.length;
-  const completedCount = nonZeroPockets.filter(p => checkedPockets[p.id]).length;
+  const completedCount = nonZeroPockets.filter(p => currentRoundChecks[p.id]).length;
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   const totalTransferred = nonZeroPockets
-    .filter(p => checkedPockets[p.id])
+    .filter(p => currentRoundChecks[p.id])
     .reduce((sum, p) => sum + p.allocatedAmount, 0);
 
   // Trigger confetti when 100% complete
@@ -55,9 +61,12 @@ export function TransferChecklist({
   }, [completedCount, totalCount]);
 
   const toggleCheck = (pocketId) => {
-    setCheckedPockets(prev => ({
+    setCheckedPocketsByRound(prev => ({
       ...prev,
-      [pocketId]: !prev[pocketId]
+      [currentMode]: {
+        ...(prev[currentMode] || {}),
+        [pocketId]: !(prev[currentMode]?.[pocketId])
+      }
     }));
   };
 
@@ -74,8 +83,11 @@ export function TransferChecklist({
   };
 
   const handleResetChecklist = () => {
-    if (window.confirm('ต้องการล้างเครื่องหมายติ๊กถูกทั้งหมดเพื่อเริ่มโอนใหม่หรือไม่?')) {
-      setCheckedPockets({});
+    if (window.confirm(`ต้องการล้างเครื่องหมายติ๊กถูกของ ${currentMode === 'round10' ? 'รอบ 10' : currentMode === 'round25' ? 'รอบ 25' : 'เงินพิเศษ'} ทั้งหมดเพื่อเริ่มโอนใหม่หรือไม่?`)) {
+      setCheckedPocketsByRound(prev => ({
+        ...prev,
+        [currentMode]: {}
+      }));
     }
   };
 
@@ -84,13 +96,31 @@ export function TransferChecklist({
     nonZeroPockets.forEach(p => {
       allChecked[p.id] = true;
     });
-    setCheckedPockets(allChecked);
+    setCheckedPocketsByRound(prev => ({
+      ...prev,
+      [currentMode]: allChecked
+    }));
+  };
+
+  const handleSaveHistoryDirect = () => {
+    if (onSaveToHistory) {
+      onSaveToHistory({
+        mode: currentMode,
+        totalIncome: calculation.income,
+        summary: calculation.summary,
+        pocketResults: calculation.pocketResults,
+        categoryBreakdown: calculation.categoryBreakdown,
+        note: `โอนสำเร็จ ${completedCount}/${totalCount} กระเป๋า (${progressPercent}%)`
+      });
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 2500);
+    }
   };
 
   // Filter pockets
   const filteredPockets = displayPockets.filter(pocket => {
     if (filterCategory !== 'all' && pocket.categoryId !== filterCategory) return false;
-    const isDone = !!checkedPockets[pocket.id];
+    const isDone = !!currentRoundChecks[pocket.id];
     if (filterStatus === 'pending' && isDone) return false;
     if (filterStatus === 'completed' && !isDone) return false;
     return true;
@@ -135,29 +165,46 @@ export function TransferChecklist({
         </div>
 
         {/* Quick Mode Switcher inside Checklist */}
-        <div className="mt-4 pt-3 border-t border-emerald-500/50 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-emerald-200 font-medium">สลับรอบโอน:</span>
-          {ROUND_PRESETS.map((preset) => {
-            const isSelected = currentMode === preset.id;
-            return (
-              <button
-                key={preset.id}
-                onClick={() => {
-                  setCurrentMode(preset.id);
-                  if (!incomeAmount || incomeAmount === 0) {
-                    setIncomeAmount(preset.defaultAmount);
-                  }
-                }}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                  isSelected
-                    ? 'bg-white text-emerald-800 shadow-sm'
-                    : 'bg-emerald-800/50 hover:bg-emerald-800/80 text-emerald-100'
-                }`}
-              >
-                <span>{preset.icon} {preset.shortName}</span>
-              </button>
-            );
-          })}
+        <div className="mt-4 pt-3 border-t border-emerald-500/50 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-emerald-200 font-medium">สลับรอบโอน:</span>
+            {ROUND_PRESETS.map((preset) => {
+              const isSelected = currentMode === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  onClick={() => {
+                    setCurrentMode(preset.id);
+                  }}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    isSelected
+                      ? 'bg-white text-emerald-800 shadow-sm'
+                      : 'bg-emerald-800/50 hover:bg-emerald-800/80 text-emerald-100'
+                  }`}
+                >
+                  <span>{preset.icon} {preset.shortName}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Quick Save to History Button */}
+          <button
+            onClick={handleSaveHistoryDirect}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-950/60 hover:bg-emerald-950/90 text-emerald-100 border border-emerald-400/40 text-xs font-semibold transition-all"
+          >
+            {savedSuccess ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-amber-300" />
+                <span className="text-amber-200">บันทึกประวัติแล้ว!</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-3.5 h-3.5" />
+                <span>บันทึกประวัติรอบนี้</span>
+              </>
+            )}
+          </button>
         </div>
 
         {/* Progress bar */}
@@ -171,11 +218,20 @@ export function TransferChecklist({
         </div>
 
         {progressPercent === 100 && totalCount > 0 && (
-          <div className="mt-4 bg-white/20 backdrop-blur-md rounded-xl p-3 flex items-center gap-2 border border-white/30 animate-bounce">
-            <Sparkles className="w-5 h-5 text-amber-300 flex-shrink-0" />
-            <span className="text-sm font-semibold">
-              🎉 ยอดเยี่ยมมาก! คุณโอนเงินเข้า Cloud Pocket ครบตามแผนเรียบร้อยแล้ว!
-            </span>
+          <div className="mt-4 bg-white/20 backdrop-blur-md rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 border border-white/30 animate-bounce">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-amber-300 flex-shrink-0" />
+              <span className="text-sm font-semibold">
+                🎉 ยอดเยี่ยมมาก! คุณโอนเงินเข้า Cloud Pocket ครบตามแผนเรียบร้อยแล้ว!
+              </span>
+            </div>
+            <button
+              onClick={handleSaveHistoryDirect}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs shadow-md transition-all whitespace-nowrap"
+            >
+              <Save className="w-4 h-4" />
+              <span>{savedSuccess ? 'บันทึกประวัติเรียบร้อย!' : 'กดบันทึกลงประวัติ'}</span>
+            </button>
           </div>
         )}
       </div>
@@ -254,7 +310,7 @@ export function TransferChecklist({
 
             <button
               onClick={handleResetChecklist}
-              title="ล้างเครื่องหมายติ๊กถูก"
+              title="ล้างเครื่องหมายติ๊กถูกของรอบนี้"
               className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -272,13 +328,13 @@ export function TransferChecklist({
             </p>
             <p className="text-xs text-slate-400">
               {currentMode === 'special' && filterCategory === 'squirrel'
-                ? '💡 ในโหมด "เงินพิเศษ" หมวด Squirrel (ค่ากิน/Fix Cost) จะไม่ถูกแบ่งเงินตามที่ตั้งไว้'
+                ? '💡 ในโหมด "เงินพิเศษ" มีเฉพาะ 1Life ที่จัดสรร 10% (Fix Cost ไม่ถูกหัก)'
                 : 'ลองเปลี่ยนโหมดรอบการโอน หรือคลิก "แสดงกระเป๋า ฿0 ด้วย"'}
             </p>
           </div>
         ) : (
           filteredPockets.map((pocket) => {
-            const isDone = !!checkedPockets[pocket.id];
+            const isDone = !!currentRoundChecks[pocket.id];
             const category = CATEGORIES.find(c => c.id === pocket.categoryId);
             const isAmtCopied = copiedId === `amt_${pocket.id}`;
             const isNameCopied = copiedId === `name_${pocket.id}`;

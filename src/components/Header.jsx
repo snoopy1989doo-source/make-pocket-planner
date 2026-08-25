@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
-import { Calculator, CheckSquare, Settings, History, Download, Upload, RotateCcw, Sparkles } from 'lucide-react';
+import { Calculator, CheckSquare, Settings, History, Download, Upload, RotateCcw, Sparkles, Coins } from 'lucide-react';
 
-export function Header({ activeTab, setActiveTab, onExport, onImport, onResetDefaults }) {
+export function Header({ activeTab, setActiveTab, onExport, onImport, onResetDefaults, activeLoanCount = 0 }) {
   const fileInputRef = useRef(null);
 
   const handleFileChange = (e) => {
@@ -21,13 +21,13 @@ export function Header({ activeTab, setActiveTab, onExport, onImport, onResetDef
   };
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-3 gap-3">
           
           {/* Logo & Title */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-400 flex items-center justify-center text-xl shadow-md shadow-amber-500/20">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-400 flex items-center justify-center text-xl shadow-md shadow-amber-500/20 flex-shrink-0">
               🐿️
             </div>
             <div>
@@ -87,7 +87,7 @@ export function Header({ activeTab, setActiveTab, onExport, onImport, onResetDef
         <nav className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
           <button
             onClick={() => setActiveTab('calculator')}
-            className={`flex items-center gap-2 px-4 py-2.5 font-medium text-sm rounded-t-lg border-b-2 transition-all whitespace-nowrap ${
+            className={`flex items-center gap-2 px-3.5 py-2.5 font-medium text-xs sm:text-sm rounded-t-xl border-b-2 transition-all whitespace-nowrap ${
               activeTab === 'calculator'
                 ? 'border-amber-500 text-amber-600 bg-amber-50/50 font-semibold'
                 : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -99,7 +99,7 @@ export function Header({ activeTab, setActiveTab, onExport, onImport, onResetDef
 
           <button
             onClick={() => setActiveTab('checklist')}
-            className={`flex items-center gap-2 px-4 py-2.5 font-medium text-sm rounded-t-lg border-b-2 transition-all whitespace-nowrap relative ${
+            className={`flex items-center gap-2 px-3.5 py-2.5 font-medium text-xs sm:text-sm rounded-t-xl border-b-2 transition-all whitespace-nowrap relative ${
               activeTab === 'checklist'
                 ? 'border-emerald-500 text-emerald-600 bg-emerald-50/50 font-semibold'
                 : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -111,20 +111,37 @@ export function Header({ activeTab, setActiveTab, onExport, onImport, onResetDef
           </button>
 
           <button
+            onClick={() => setActiveTab('loans')}
+            className={`flex items-center gap-2 px-3.5 py-2.5 font-medium text-xs sm:text-sm rounded-t-xl border-b-2 transition-all whitespace-nowrap relative ${
+              activeTab === 'loans'
+                ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 font-semibold'
+                : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            <Coins className="w-4 h-4" />
+            <span>ยืมเงินตัวเอง & คืน</span>
+            {activeLoanCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                {activeLoanCount}
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={() => setActiveTab('manager')}
-            className={`flex items-center gap-2 px-4 py-2.5 font-medium text-sm rounded-t-lg border-b-2 transition-all whitespace-nowrap ${
+            className={`flex items-center gap-2 px-3.5 py-2.5 font-medium text-xs sm:text-sm rounded-t-xl border-b-2 transition-all whitespace-nowrap ${
               activeTab === 'manager'
-                ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50 font-semibold'
+                ? 'border-amber-500 text-amber-600 bg-amber-50/50 font-semibold'
                 : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`}
           >
             <Settings className="w-4 h-4" />
-            <span>จัดการกระเป๋า & กฎแบ่งเงิน</span>
+            <span>จัดการกระเป๋า & กฎ</span>
           </button>
 
           <button
             onClick={() => setActiveTab('history')}
-            className={`flex items-center gap-2 px-4 py-2.5 font-medium text-sm rounded-t-lg border-b-2 transition-all whitespace-nowrap ${
+            className={`flex items-center gap-2 px-3.5 py-2.5 font-medium text-xs sm:text-sm rounded-t-xl border-b-2 transition-all whitespace-nowrap ${
               activeTab === 'history'
                 ? 'border-blue-500 text-blue-600 bg-blue-50/50 font-semibold'
                 : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
