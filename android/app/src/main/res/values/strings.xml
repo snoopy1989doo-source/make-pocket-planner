@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MAKE Pocket Planner</string>
+    <string name="title_activity_main">MAKE Pocket Planner</string>
+    <string name="package_name">com.snoopy.makepocketplanner</string>
+    <string name="custom_url_scheme">com.snoopy.makepocketplanner</string>
+</resources>
