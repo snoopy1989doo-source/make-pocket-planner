@@ -1,5 +1,5 @@
 {
   "appId": "com.snoopy.makepocketplanner",
   "appName": "MAKE Pocket Planner",
-  "webDir": "dist"
+  "webDir": "www"
 }

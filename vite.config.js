@@ -5,6 +5,10 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: '/make-pocket-planner/',
+  build: {
+    outDir: 'www',
+    emptyOutDir: true
+  },
   server: {
     host: '0.0.0.0',
     port: 3000,
