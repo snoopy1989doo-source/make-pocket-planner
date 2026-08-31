@@ -27,9 +27,11 @@ export function Header({ activeTab, setActiveTab, onExport, onImport, onResetDef
           
           {/* Logo & Title */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-400 flex items-center justify-center text-xl shadow-md shadow-amber-500/20 flex-shrink-0">
-              🐿️
-            </div>
+            <img
+              src="./icon-192.png"
+              alt="Money Planner"
+              className="w-10 h-10 rounded-2xl object-cover shadow-md shadow-emerald-900/20 flex-shrink-0 border border-slate-200"
+            />
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-bold text-slate-900 leading-tight">
