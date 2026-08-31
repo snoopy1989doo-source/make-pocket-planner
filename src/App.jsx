@@ -92,7 +92,7 @@ export default function App() {
   // Export JSON Backup
   const handleExportBackup = () => {
     const backupData = {
-      app: 'MAKE Pocket Planner',
+      app: 'Money Planner',
       version: '1.5',
       exportDate: new Date().toISOString(),
       pockets,
@@ -228,7 +228,7 @@ export default function App() {
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-4 mt-12 text-center text-xs text-slate-400">
         <p className="flex items-center justify-center gap-1 flex-wrap">
-          <span>MAKE Cloud Pocket Salary & Income Planner</span>
+          <span>Money Planner (MAKE Cloud Pocket)</span>
           <span>•</span>
           <span>🐿️ Squirrel</span>
           <span>•</span>

@@ -1,6 +1,6 @@
 {
-  "name": "MAKE Pocket Planner",
-  "short_name": "MAKE Planner",
+  "name": "Money Planner",
+  "short_name": "Money Planner",
   "description": "ระบบคำนวณและกระจายเงินเดือน & เงินพิเศษ เข้าสู่ MAKE by KBank Cloud Pockets",
   "start_url": "/make-pocket-planner/",
   "scope": "/make-pocket-planner/",

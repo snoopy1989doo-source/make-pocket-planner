@@ -33,7 +33,7 @@ export function Header({ activeTab, setActiveTab, onExport, onImport, onResetDef
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-bold text-slate-900 leading-tight">
-                  MAKE Pocket Planner
+                  Money Planner
                 </h1>
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
                   Cloud Pocket
