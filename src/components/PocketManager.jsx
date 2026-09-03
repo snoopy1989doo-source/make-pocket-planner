@@ -417,14 +417,19 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
                         type="number"
                         step="0.5"
                         min="0"
-                        value={formData.rules.round10.value}
-                        onChange={(e) => setFormData({
-                          ...formData,
-                          rules: {
-                            ...formData.rules,
-                            round10: { ...formData.rules.round10, value: Number(e.target.value) }
-                          }
-                        })}
+                        value={formData.rules.round10.value === 0 ? '' : formData.rules.round10.value}
+                        placeholder="0"
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/^0+(?=\d)/, '');
+                          setFormData({
+                            ...formData,
+                            rules: {
+                              ...formData.rules,
+                              round10: { ...formData.rules.round10, value: raw === '' ? 0 : Number(raw) }
+                            }
+                          });
+                        }}
                         className="w-full px-3 py-1.5 pr-8 bg-white border border-slate-200 rounded-lg text-sm font-bold font-mono-numeric focus:outline-none focus:border-amber-500"
                       />
                       <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">
@@ -489,14 +494,19 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
                         type="number"
                         step="0.5"
                         min="0"
-                        value={formData.rules.round25.value}
-                        onChange={(e) => setFormData({
-                          ...formData,
-                          rules: {
-                            ...formData.rules,
-                            round25: { ...formData.rules.round25, value: Number(e.target.value) }
-                          }
-                        })}
+                        value={formData.rules.round25.value === 0 ? '' : formData.rules.round25.value}
+                        placeholder="0"
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/^0+(?=\d)/, '');
+                          setFormData({
+                            ...formData,
+                            rules: {
+                              ...formData.rules,
+                              round25: { ...formData.rules.round25, value: raw === '' ? 0 : Number(raw) }
+                            }
+                          });
+                        }}
                         className="w-full px-3 py-1.5 pr-8 bg-white border border-slate-200 rounded-lg text-sm font-bold font-mono-numeric focus:outline-none focus:border-amber-500"
                       />
                       <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">
@@ -561,14 +571,19 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
                         type="number"
                         step="0.5"
                         min="0"
-                        value={formData.rules.special.value}
-                        onChange={(e) => setFormData({
-                          ...formData,
-                          rules: {
-                            ...formData.rules,
-                            special: { ...formData.rules.special, value: Number(e.target.value) }
-                          }
-                        })}
+                        value={formData.rules.special.value === 0 ? '' : formData.rules.special.value}
+                        placeholder="0"
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/^0+(?=\d)/, '');
+                          setFormData({
+                            ...formData,
+                            rules: {
+                              ...formData.rules,
+                              special: { ...formData.rules.special, value: raw === '' ? 0 : Number(raw) }
+                            }
+                          });
+                        }}
                         className="w-full px-3 py-1.5 pr-8 bg-white border border-slate-200 rounded-lg text-sm font-bold font-mono-numeric focus:outline-none focus:border-amber-500"
                       />
                       <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">

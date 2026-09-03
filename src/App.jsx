@@ -143,6 +143,36 @@ export default function App() {
         special: 5000
       });
       setRoundDescriptions(DEFAULT_ROUND_DESCRIPTIONS);
+      alert('รีเซ็ตระบบกลับเป็นค่าเริ่มต้น 5 หมวดหมู่เรียบร้อยแล้ว!');
+    }
+  };
+
+  // Reset all income amounts to 0 (Fresh cycle start)
+  const handleResetAllIncomeToZero = () => {
+    if (window.confirm('คุณต้องการเซ็ตยอดเงินของทุกรอบเป็น 0 บาท และล้างติ๊กโอนเพื่อเริ่มรอบใหม่หรือไม่? (กระเป๋าและกฎที่ตั้งไว้จะยังคงอยู่ครบ)')) {
+      setIncomeAmounts({
+        round10: 0,
+        round25: 0,
+        special: 0
+      });
+      setCheckedPocketsByRound({
+        round10: {},
+        round25: {},
+        special: {}
+      });
+      alert('เซ็ตยอดเงินทุกรอบเป็น 0 บาท และล้างเครื่องหมายติ๊กโอนเรียบร้อยแล้ว!');
+    }
+  };
+
+  // Clear all transfer checklists
+  const handleClearAllChecklists = () => {
+    if (window.confirm('คุณต้องการล้างเครื่องหมายติ๊กโอนของทุกรอบเพื่อเริ่มโอนใหม่หรือไม่?')) {
+      setCheckedPocketsByRound({
+        round10: {},
+        round25: {},
+        special: {}
+      });
+      alert('ล้างเครื่องหมายติ๊กโอนทุกรอบเรียบร้อยแล้ว!');
     }
   };
 
@@ -168,6 +198,11 @@ export default function App() {
         onExport={handleExportBackup}
         onImport={handleImportBackup}
         onResetDefaults={handleResetDefaults}
+        onResetAllIncomeToZero={handleResetAllIncomeToZero}
+        onClearAllChecklists={handleClearAllChecklists}
+        pocketsCount={pockets.length}
+        loansCount={loans.length}
+        historyCount={history.length}
         activeLoanCount={activeLoanCount}
       />
 

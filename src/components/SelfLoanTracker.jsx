@@ -413,8 +413,13 @@ export function SelfLoanTracker({ loans, setLoans }) {
                 min="0"
                 step="50"
                 required
-                value={formData.totalAmount}
-                onChange={(e) => setFormData({ ...formData, totalAmount: Number(e.target.value) })}
+                value={formData.totalAmount === 0 ? '' : formData.totalAmount}
+                placeholder="0"
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/^0+(?=\d)/, '');
+                  setFormData({ ...formData, totalAmount: raw === '' ? 0 : Number(raw) });
+                }}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold font-mono-numeric focus:outline-none focus:border-indigo-500"
               />
             </div>
@@ -428,8 +433,13 @@ export function SelfLoanTracker({ loans, setLoans }) {
                 type="number"
                 min="0"
                 step="50"
-                value={formData.paidAmount}
-                onChange={(e) => setFormData({ ...formData, paidAmount: Number(e.target.value) })}
+                value={formData.paidAmount === 0 ? '' : formData.paidAmount}
+                placeholder="0"
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/^0+(?=\d)/, '');
+                  setFormData({ ...formData, paidAmount: raw === '' ? 0 : Number(raw) });
+                }}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold font-mono-numeric focus:outline-none focus:border-indigo-500"
               />
             </div>
@@ -460,8 +470,13 @@ export function SelfLoanTracker({ loans, setLoans }) {
                     type="number"
                     min="0"
                     step="50"
-                    value={formData.amountPerRound}
-                    onChange={(e) => setFormData({ ...formData, amountPerRound: Number(e.target.value) })}
+                    value={formData.amountPerRound === 0 ? '' : formData.amountPerRound}
+                    placeholder="0"
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/^0+(?=\d)/, '');
+                      setFormData({ ...formData, amountPerRound: raw === '' ? 0 : Number(raw) });
+                    }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold font-mono-numeric focus:outline-none focus:border-indigo-500"
                   />
                 </div>
@@ -717,8 +732,13 @@ export function SelfLoanTracker({ loans, setLoans }) {
                   type="number"
                   min="1"
                   max={quickPayModal.totalAmount - quickPayModal.paidAmount}
-                  value={customPayAmount}
-                  onChange={(e) => setCustomPayAmount(e.target.value)}
+                  value={customPayAmount === '0' ? '' : customPayAmount}
+                  placeholder="0"
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/^0+(?=\d)/, '');
+                    setCustomPayAmount(raw);
+                  }}
                   className="w-full pl-8 pr-4 py-2.5 bg-slate-50 border-2 border-indigo-200 rounded-xl text-lg font-bold font-mono-numeric focus:outline-none focus:border-indigo-600"
                 />
               </div>
