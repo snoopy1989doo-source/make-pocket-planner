@@ -176,6 +176,21 @@ export default function App() {
     }
   };
 
+  // Reset all pocket rules to 0
+  const handleResetAllPocketRulesToZero = () => {
+    if (window.confirm('คุณต้องการรีเซ็ตสัดส่วน (%) และยอดเงิน (Fixed) ของทุกกระเป๋าให้เป็น 0 ทั้ง 3 โหมดเพื่อเริ่มจัดสรรใหม่หรือไม่? (รายชื่อกระเป๋าเดิมจะยังคงอยู่ครบ)')) {
+      setPockets(prev => prev.map(p => ({
+        ...p,
+        rules: {
+          round10: { mode: 'percent_remaining', value: 0 },
+          round25: { mode: 'percent_remaining', value: 0 },
+          special: { mode: 'percent_remaining', value: 0 }
+        }
+      })));
+      alert('รีเซ็ตสัดส่วนทุกกระเป๋าเป็น 0 เรียบร้อยแล้ว!');
+    }
+  };
+
   // Save to history log
   const handleSaveToHistory = (entryData) => {
     const newEntry = {
@@ -199,6 +214,7 @@ export default function App() {
         onImport={handleImportBackup}
         onResetDefaults={handleResetDefaults}
         onResetAllIncomeToZero={handleResetAllIncomeToZero}
+        onResetAllPocketRulesToZero={handleResetAllPocketRulesToZero}
         onClearAllChecklists={handleClearAllChecklists}
         pocketsCount={pockets.length}
         loansCount={loans.length}

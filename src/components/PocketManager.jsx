@@ -160,6 +160,32 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
     }
   };
 
+  const handleResetAllRulesToZero = () => {
+    if (window.confirm('คุณต้องการรีเซ็ตสัดส่วน (%) และยอดเงิน (Fixed) ของทุกกระเป๋าให้เป็น 0 ทั้ง 3 โหมด (รอบ 10, รอบ 25, เงินพิเศษ) เพื่อเริ่มจัดสรรใหม่หรือไม่? (รายชื่อกระเป๋าเดิมจะยังคงอยู่ครบ)')) {
+      setPockets(prev => prev.map(p => ({
+        ...p,
+        rules: {
+          round10: { mode: 'percent_remaining', value: 0 },
+          round25: { mode: 'percent_remaining', value: 0 },
+          special: { mode: 'percent_remaining', value: 0 }
+        }
+      })));
+    }
+  };
+
+  const handleResetSingleModeRulesToZero = (mode) => {
+    const modeName = mode === 'round10' ? 'รอบ 10' : mode === 'round25' ? 'รอบ 25' : 'เงินพิเศษ';
+    if (window.confirm(`คุณต้องการรีเซ็ตสัดส่วนและยอดเงินของทุกกระเป๋าใน "${modeName}" เป็น 0 หรือไม่?`)) {
+      setPockets(prev => prev.map(p => ({
+        ...p,
+        rules: {
+          ...p.rules,
+          [mode]: { mode: 'percent_remaining', value: 0 }
+        }
+      })));
+    }
+  };
+
   const filteredPockets = selectedCategoryFilter === 'all'
     ? pockets
     : pockets.filter(p => p.categoryId === selectedCategoryFilter);
@@ -185,7 +211,7 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={handleStartAdd}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-semibold shadow-md shadow-amber-500/20 transition-all"
@@ -195,9 +221,18 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
             </button>
 
             <button
+              onClick={handleResetAllRulesToZero}
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold transition-colors"
+              title="ล้างสัดส่วนและยอดเงินของทุกกระเป๋าเป็น 0 (เก็บรายชื่อไว้)"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
+              <span>เซ็ตทุกกระเป๋าเป็น 0</span>
+            </button>
+
+            <button
               onClick={handleResetToDefault}
               className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-medium transition-colors"
-              title="รีเซ็ตเป็นค่าเริ่มต้น"
+              title="รีเซ็ตเป็นค่าเริ่มต้นโรงงาน"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">คืนค่าเริ่มต้น</span>
@@ -208,56 +243,98 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
         {/* Allocation Rules Check Matrix */}
         <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
           {/* Round 10 */}
-          <div className={`p-3.5 rounded-xl border ${
+          <div className={`p-3.5 rounded-xl border flex flex-col justify-between ${
             r10Alloc.summary.unallocatedAmount > 0 ? 'bg-blue-50/70 border-blue-200' : r10Alloc.summary.totalPercentConfigured > 100 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-200/70'
           }`}>
-            <div className="font-bold text-slate-800 mb-1 flex items-center justify-between">
-              <span>🗓️ รอบ 10 (ฐาน {formatMoney(base10)})</span>
-              <span className={`font-bold px-1.5 py-0.5 rounded ${
-                r10Alloc.summary.totalPercentConfigured === 100 ? 'text-emerald-700 bg-emerald-100' : 'text-amber-800 bg-amber-100'
-              }`}>
-                รวม {r10Alloc.summary.totalPercentConfigured}%
-              </span>
+            <div>
+              <div className="font-bold text-slate-800 mb-1 flex items-center justify-between">
+                <span>🗓️ รอบ 10 (ฐาน {formatMoney(base10)})</span>
+                <span className={`font-bold px-1.5 py-0.5 rounded ${
+                  r10Alloc.summary.totalPercentConfigured === 100 ? 'text-emerald-700 bg-emerald-100' : 'text-amber-800 bg-amber-100'
+                }`}>
+                  รวม {r10Alloc.summary.totalPercentConfigured}%
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-500 mt-1">
+                <span>Fixed: <b>{formatMoney(r10Alloc.summary.totalFixed)}</b></span>
+                <span>เหลือแบ่งได้: <b className="text-slate-700">{formatMoney(r10Alloc.summary.unallocatedAmount)}</b></span>
+              </div>
             </div>
-            <div className="flex justify-between text-slate-500 mt-1">
-              <span>Fixed: <b>{formatMoney(r10Alloc.summary.totalFixed)}</b></span>
-              <span>เหลือแบ่งได้: <b className="text-slate-700">{formatMoney(r10Alloc.summary.unallocatedAmount)}</b></span>
+            
+            <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between">
+              <span className="text-[10px] text-slate-400">สัดส่วนรอบ 10</span>
+              <button
+                type="button"
+                onClick={() => handleResetSingleModeRulesToZero('round10')}
+                className="text-[10px] font-semibold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-0.5"
+              >
+                <RotateCcw className="w-2.5 h-2.5" />
+                <span>รีเซ็ตเป็น 0%</span>
+              </button>
             </div>
           </div>
 
           {/* Round 25 */}
-          <div className={`p-3.5 rounded-xl border ${
+          <div className={`p-3.5 rounded-xl border flex flex-col justify-between ${
             r25Alloc.summary.unallocatedAmount > 0 ? 'bg-blue-50/70 border-blue-200' : r25Alloc.summary.totalPercentConfigured > 100 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-200/70'
           }`}>
-            <div className="font-bold text-slate-800 mb-1 flex items-center justify-between">
-              <span>📅 รอบ 25 (ฐาน {formatMoney(base25)})</span>
-              <span className={`font-bold px-1.5 py-0.5 rounded ${
-                r25Alloc.summary.totalPercentConfigured === 100 ? 'text-emerald-700 bg-emerald-100' : 'text-amber-800 bg-amber-100'
-              }`}>
-                รวม {r25Alloc.summary.totalPercentConfigured}%
-              </span>
+            <div>
+              <div className="font-bold text-slate-800 mb-1 flex items-center justify-between">
+                <span>📅 รอบ 25 (ฐาน {formatMoney(base25)})</span>
+                <span className={`font-bold px-1.5 py-0.5 rounded ${
+                  r25Alloc.summary.totalPercentConfigured === 100 ? 'text-emerald-700 bg-emerald-100' : 'text-amber-800 bg-amber-100'
+                }`}>
+                  รวม {r25Alloc.summary.totalPercentConfigured}%
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-500 mt-1">
+                <span>Fixed: <b>{formatMoney(r25Alloc.summary.totalFixed)}</b></span>
+                <span>เหลือแบ่งได้: <b className="text-slate-700">{formatMoney(r25Alloc.summary.unallocatedAmount)}</b></span>
+              </div>
             </div>
-            <div className="flex justify-between text-slate-500 mt-1">
-              <span>Fixed: <b>{formatMoney(r25Alloc.summary.totalFixed)}</b></span>
-              <span>เหลือแบ่งได้: <b className="text-slate-700">{formatMoney(r25Alloc.summary.unallocatedAmount)}</b></span>
+
+            <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between">
+              <span className="text-[10px] text-slate-400">สัดส่วนรอบ 25</span>
+              <button
+                type="button"
+                onClick={() => handleResetSingleModeRulesToZero('round25')}
+                className="text-[10px] font-semibold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-0.5"
+              >
+                <RotateCcw className="w-2.5 h-2.5" />
+                <span>รีเซ็ตเป็น 0%</span>
+              </button>
             </div>
           </div>
 
           {/* Special */}
-          <div className={`p-3.5 rounded-xl border ${
+          <div className={`p-3.5 rounded-xl border flex flex-col justify-between ${
             specAlloc.summary.unallocatedAmount > 0 ? 'bg-blue-50/70 border-blue-200' : specAlloc.summary.totalPercentConfigured > 100 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-200/70'
           }`}>
-            <div className="font-bold text-slate-800 mb-1 flex items-center justify-between">
-              <span>✨ เงินพิเศษ (ฐาน {formatMoney(baseSpecial)})</span>
-              <span className={`font-bold px-1.5 py-0.5 rounded ${
-                specAlloc.summary.totalPercentConfigured === 100 ? 'text-emerald-700 bg-emerald-100' : 'text-amber-800 bg-amber-100'
-              }`}>
-                รวม {specAlloc.summary.totalPercentConfigured}%
-              </span>
+            <div>
+              <div className="font-bold text-slate-800 mb-1 flex items-center justify-between">
+                <span>✨ เงินพิเศษ (ฐาน {formatMoney(baseSpecial)})</span>
+                <span className={`font-bold px-1.5 py-0.5 rounded ${
+                  specAlloc.summary.totalPercentConfigured === 100 ? 'text-emerald-700 bg-emerald-100' : 'text-amber-800 bg-amber-100'
+                }`}>
+                  รวม {specAlloc.summary.totalPercentConfigured}%
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-500 mt-1">
+                <span>Fixed: <b>{formatMoney(specAlloc.summary.totalFixed)}</b></span>
+                <span>เหลือแบ่งได้: <b className="text-slate-700">{formatMoney(specAlloc.summary.unallocatedAmount)}</b></span>
+              </div>
             </div>
-            <div className="flex justify-between text-slate-500 mt-1">
-              <span>Fixed: <b>{formatMoney(specAlloc.summary.totalFixed)}</b></span>
-              <span>เหลือแบ่งได้: <b className="text-slate-700">{formatMoney(specAlloc.summary.unallocatedAmount)}</b></span>
+
+            <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between">
+              <span className="text-[10px] text-slate-400">สัดส่วนเงินพิเศษ</span>
+              <button
+                type="button"
+                onClick={() => handleResetSingleModeRulesToZero('special')}
+                className="text-[10px] font-semibold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-0.5"
+              >
+                <RotateCcw className="w-2.5 h-2.5" />
+                <span>รีเซ็ตเป็น 0%</span>
+              </button>
             </div>
           </div>
         </div>
@@ -378,9 +455,27 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
 
           {/* Allocation Rules for 3 modes with Live Remaining % & Remaining Baht */}
           <div className="pt-3 border-t border-slate-100">
-            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-              ตั้งค่าสูตรการกระจายเงิน (3 โหมด)
-            </h4>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                ตั้งค่าสูตรการกระจายเงิน (3 โหมด)
+              </h4>
+              <button
+                type="button"
+                onClick={() => setFormData({
+                  ...formData,
+                  rules: {
+                    round10: { mode: 'percent_remaining', value: 0 },
+                    round25: { mode: 'percent_remaining', value: 0 },
+                    special: { mode: 'percent_remaining', value: 0 }
+                  }
+                })}
+                className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-md border border-rose-200 transition-colors"
+                title="ล้างสัดส่วนและยอดเงินของกระเป๋านี้เป็น 0 ทั้ง 3 โหมด"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>ล้างทั้ง 3 รอบเป็น 0</span>
+              </button>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
               

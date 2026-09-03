@@ -25,6 +25,7 @@ export function Header({
   onImport, 
   onResetDefaults, 
   onResetAllIncomeToZero,
+  onResetAllPocketRulesToZero,
   onClearAllChecklists,
   pocketsCount = 0,
   loansCount = 0,
@@ -263,7 +264,32 @@ export function Header({
                 </span>
               </button>
 
-              {/* Action 2: Clear Checklist only */}
+              {/* Action 2: Reset All Pocket Rules to 0 */}
+              {onResetAllPocketRulesToZero && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onResetAllPocketRulesToZero();
+                    setShowStorageModal(false);
+                  }}
+                  className="w-full flex items-center justify-between p-3 rounded-2xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-left transition-colors group"
+                >
+                  <div>
+                    <span className="text-xs font-bold text-orange-900 block flex items-center gap-1.5">
+                      <RotateCcw className="w-3.5 h-3.5 text-orange-700" />
+                      <span>เซ็ตสัดส่วนกระเป๋า (Pockets) ทุกใบเป็น 0%</span>
+                    </span>
+                    <span className="text-[11px] text-orange-700 block mt-0.5">
+                      ล้างสัดส่วน % และยอด Fixed ของทุกกระเป๋าเป็น 0 (รายชื่อกระเป๋าเดิมจะยังคงอยู่ครบ)
+                    </span>
+                  </div>
+                  <span className="text-xs font-semibold text-orange-800 bg-orange-200/80 px-2 py-1 rounded-lg group-hover:bg-orange-300">
+                    เซ็ตกระเป๋าเป็น 0
+                  </span>
+                </button>
+              )}
+
+              {/* Action 3: Clear Checklist only */}
               <button
                 type="button"
                 onClick={() => {
@@ -286,7 +312,7 @@ export function Header({
                 </span>
               </button>
 
-              {/* Action 3: Factory Reset */}
+              {/* Action 4: Factory Reset */}
               <button
                 type="button"
                 onClick={() => {
