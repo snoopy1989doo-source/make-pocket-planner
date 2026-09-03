@@ -63,18 +63,13 @@ export function Header({
               alt="Money Planner"
               className="w-10 h-10 rounded-2xl object-cover shadow-md shadow-emerald-900/20 flex-shrink-0 border border-slate-200"
             />
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-slate-900 leading-tight">
-                  Money Planner
-                </h1>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
-                  Cloud Pocket
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                ระบบคำนวณและกระจายเงินเดือน (รอบ 10 / 25) & เงินพิเศษ
-              </p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-bold text-slate-900 leading-tight">
+                Money Planner
+              </h1>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                Cloud Pocket
+              </span>
             </div>
           </div>
 

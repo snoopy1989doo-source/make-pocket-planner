@@ -259,24 +259,6 @@ export default function App() {
           />
         )}
       </main>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-4 mt-12 text-center text-xs text-slate-400">
-        <p className="flex items-center justify-center gap-1 flex-wrap">
-          <span>Money Planner (MAKE Cloud Pocket)</span>
-          <span>•</span>
-          <span>🐿️ Squirrel</span>
-          <span>•</span>
-          <span>🦏 Rhino</span>
-          <span>•</span>
-          <span>🐱 Cat</span>
-          <span>•</span>
-          <span>🐝 Bee</span>
-          <span>•</span>
-          <span>🦈 Shark</span>
-        </p>
-      </footer>
-
     </div>
   );
 }
