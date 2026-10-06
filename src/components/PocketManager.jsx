@@ -494,8 +494,11 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
                         const title = ['10', '25', 'พิเศษ'][index];
                         return <label key={mode} className="min-w-0">
                           <span className="sm:hidden text-[10px] text-slate-500 block mb-0.5">รอบ{title}</span>
-                          <input type="number" min="0" step="1" value={item[mode] ?? 0} aria-label={`${item.name || 'รายการย่อย'} รอบ${title}`}
-                            onChange={(e) => setFormData({ ...formData, suballocations: formData.suballocations.map(row => row.id === item.id ? { ...row, [mode]: Math.max(0, Number(e.target.value) || 0) } : row) })}
+                          <input type="number" min="0" step="1" value={!item[mode] ? '' : item[mode]} placeholder="0" aria-label={`${item.name || 'รายการย่อย'} รอบ${title}`}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/^0+(?=\d)/, '');
+                              setFormData({ ...formData, suballocations: formData.suballocations.map(row => row.id === item.id ? { ...row, [mode]: raw === '' ? 0 : Number(raw) } : row) });
+                            }}
                             className="w-full min-w-0 px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs font-mono-numeric focus:outline-none focus:border-amber-500" />
                         </label>;
                       })}
