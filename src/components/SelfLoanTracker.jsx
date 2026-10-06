@@ -411,7 +411,7 @@ export function SelfLoanTracker({ loans, setLoans }) {
               <input
                 type="number"
                 min="0"
-                step="50"
+                step="1"
                 required
                 value={formData.totalAmount === 0 ? '' : formData.totalAmount}
                 placeholder="0"
@@ -432,7 +432,7 @@ export function SelfLoanTracker({ loans, setLoans }) {
               <input
                 type="number"
                 min="0"
-                step="50"
+                step="1"
                 value={formData.paidAmount === 0 ? '' : formData.paidAmount}
                 placeholder="0"
                 onFocus={(e) => e.target.select()}
@@ -469,7 +469,7 @@ export function SelfLoanTracker({ loans, setLoans }) {
                   <input
                     type="number"
                     min="0"
-                    step="50"
+                    step="1"
                     value={formData.amountPerRound === 0 ? '' : formData.amountPerRound}
                     placeholder="0"
                     onFocus={(e) => e.target.select()}

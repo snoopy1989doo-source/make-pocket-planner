@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { CATEGORIES, DEFAULT_POCKETS, ROUND_PRESETS } from '../data/defaultPockets';
 import { 
   Plus, 
@@ -23,6 +23,15 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
   const [editingPocket, setEditingPocket] = useState(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
+  const editorRef = useRef(null);
+  const editorOpen = isAddingNew || editingPocket !== null;
+  useEffect(() => {
+    if (!editorOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    editorRef.current.showModal();
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [editorOpen]);
 
   const [formData, setFormData] = useState({
     id: '',
@@ -31,6 +40,7 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
     emoji: '💰',
     description: '',
     isActive: true,
+    suballocations: [],
     rules: {
       round10: { mode: 'percent_remaining', value: 5 },
       round25: { mode: 'percent_remaining', value: 5 },
@@ -107,6 +117,7 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
       emoji: '💰',
       description: '',
       isActive: true,
+      suballocations: [],
       rules: {
         round10: { mode: 'percent_remaining', value: 5 },
         round25: { mode: 'percent_remaining', value: 5 },
@@ -376,6 +387,9 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
 
       {/* Add / Edit Pocket Modal / Form */}
       {(isAddingNew || editingPocket) && (
+        <dialog ref={editorRef} aria-label="แก้ไข Cloud Pocket"
+          onCancel={() => { setIsAddingNew(false); setEditingPocket(null); }}
+          className="m-auto w-[calc(100%-1rem)] max-w-3xl max-h-[90dvh] overflow-y-auto overscroll-contain rounded-2xl p-0 backdrop:bg-black/50">
         <form
           onSubmit={handleSaveForm}
           className="bg-white rounded-2xl border-2 border-amber-400 p-5 shadow-lg space-y-4 animate-in fade-in slide-in-from-top-4"
@@ -449,6 +463,63 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
                 placeholder="เช่น ค่ากินรายปักษ์, ออมทอง, พอร์ตเทรด XM"
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500"
               />
+            </div>
+
+            {/* Purpose breakdown inside this pocket */}
+            <div className="sm:col-span-12 border-t border-slate-100 pt-4">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-800">รายการย่อยในกระเป๋านี้</h4>
+                  <p className="text-[11px] text-slate-500">ระบุว่าเงินแต่ละรอบเตรียมไว้ทำอะไร เช่น ค่าบ้าน หรือ MSFT</p>
+                </div>
+                <button type="button" onClick={() => setFormData({
+                  ...formData,
+                  suballocations: [...(formData.suballocations || []), { id: `sub_${Date.now()}`, name: '', round10: 0, round25: 0, special: 0 }]
+                })} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold">
+                  <Plus className="w-3.5 h-3.5" /> เพิ่มรายการ
+                </button>
+              </div>
+
+              {(formData.suballocations || []).length > 0 && <>
+                <div className="hidden sm:grid grid-cols-[minmax(120px,1fr)_repeat(3,minmax(72px,100px))_32px] gap-2 px-2 mb-1 text-[10px] font-semibold text-slate-500">
+                  <span>รายการ / เป้าหมาย</span><span>รอบ 10</span><span>รอบ 25</span><span>เงินพิเศษ</span><span />
+                </div>
+                <div className="space-y-2">
+                  {(formData.suballocations || []).map((item) => (
+                    <div key={item.id} className="grid grid-cols-2 sm:grid-cols-[minmax(120px,1fr)_repeat(3,minmax(72px,100px))_32px] gap-2 items-center rounded-xl bg-slate-50 p-2 border border-slate-200">
+                      <input type="text" value={item.name} placeholder="เช่น ค่าบ้าน / MSFT" aria-label="ชื่อรายการย่อย"
+                        onChange={(e) => setFormData({ ...formData, suballocations: formData.suballocations.map(row => row.id === item.id ? { ...row, name: e.target.value } : row) })}
+                        className="col-span-2 sm:col-span-1 min-w-0 px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-amber-500" />
+                      {['round10', 'round25', 'special'].map((mode, index) => {
+                        const title = ['10', '25', 'พิเศษ'][index];
+                        return <label key={mode} className="min-w-0">
+                          <span className="sm:hidden text-[10px] text-slate-500 block mb-0.5">รอบ{title}</span>
+                          <input type="number" min="0" step="1" value={item[mode] ?? 0} aria-label={`${item.name || 'รายการย่อย'} รอบ${title}`}
+                            onChange={(e) => setFormData({ ...formData, suballocations: formData.suballocations.map(row => row.id === item.id ? { ...row, [mode]: Math.max(0, Number(e.target.value) || 0) } : row) })}
+                            className="w-full min-w-0 px-2 py-2 bg-white border border-slate-200 rounded-lg text-xs font-mono-numeric focus:outline-none focus:border-amber-500" />
+                        </label>;
+                      })}
+                      <button type="button" aria-label={`ลบรายการ ${item.name || 'ย่อย'}`} onClick={() => setFormData({ ...formData, suballocations: formData.suballocations.filter(row => row.id !== item.id) })}
+                        className="col-span-2 sm:col-span-1 justify-self-end sm:justify-self-center p-2 rounded-lg text-rose-500 hover:bg-rose-50"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  {[
+                    ['round10', 'รอบวันที่ 10', r10FormStats.currentPocketAmount],
+                    ['round25', 'รอบวันที่ 25', r25FormStats.currentPocketAmount],
+                    ['special', 'เงินพิเศษ', specFormStats.currentPocketAmount]
+                  ].map(([mode, label, pocketAmount]) => {
+                    const subTotal = (formData.suballocations || []).reduce((sum, item) => sum + (Number(item[mode]) || 0), 0);
+                    const difference = Math.round((subTotal - pocketAmount) * 100) / 100;
+                    const matches = Math.abs(difference) < 0.01;
+                    return <div key={mode} className={`rounded-lg border p-2 text-[10px] ${matches ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+                      <span className="block font-semibold">{label}: {formatMoney(subTotal)} / {formatMoney(pocketAmount)}</span>
+                      <span>{matches ? '✓ ยอดย่อยตรงกับกระเป๋า' : difference > 0 ? `เกิน ${formatMoney(difference)}` : `ยังไม่ได้แจกแจง ${formatMoney(Math.abs(difference))}`}</span>
+                    </div>;
+                  })}
+                </div>
+              </>}
             </div>
 
           </div>
@@ -733,6 +804,7 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
             </button>
           </div>
         </form>
+        </dialog>
       )}
 
       {/* Pocket List Table/Card Grid with Baht Amount Pill */}

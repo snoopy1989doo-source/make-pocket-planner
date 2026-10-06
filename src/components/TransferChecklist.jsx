@@ -320,9 +320,9 @@ export function TransferChecklist({
       </div>
 
       {/* Pocket Checklist Rows */}
-      <div className="space-y-2.5">
+      <div className="grid grid-cols-2 gap-2.5">
         {filteredPockets.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500 text-sm">
+          <div className="col-span-2 bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500 text-sm">
             <p className="font-semibold text-slate-700 mb-1">
               ไม่มีกระเป๋าเงินในตัวกรองนี้
             </p>
@@ -343,8 +343,7 @@ export function TransferChecklist({
             return (
               <div
                 key={pocket.id}
-                onClick={() => !isZero && toggleCheck(pocket.id)}
-                className={`bg-white rounded-2xl border p-4 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 select-none group ${
+                className={`min-w-0 bg-white rounded-2xl border p-3 transition-all flex flex-col justify-between gap-2 select-none group ${
                   isZero
                     ? 'opacity-40 bg-slate-50/70 border-slate-200 cursor-default'
                     : isDone
@@ -353,41 +352,45 @@ export function TransferChecklist({
                 }`}
               >
                 {/* Left: Checkbox + Pocket Details */}
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div
-                    className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-all flex-shrink-0 ${
-                      isZero
-                        ? 'border-slate-200 bg-slate-100 text-transparent'
-                        : isDone
-                        ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
-                        : 'border-slate-300 bg-white group-hover:border-emerald-500'
-                    }`}
-                  >
-                    {isDone && !isZero && <Check className="w-4 h-4 stroke-[3]" />}
-                  </div>
-
-                  <span className="text-2xl flex-shrink-0">{pocket.emoji || '📁'}</span>
+                <label className="flex items-start gap-2 min-w-0 min-h-11 cursor-pointer">
+                  <input type="checkbox" checked={isDone} disabled={isZero}
+                    onChange={() => toggleCheck(pocket.id)}
+                    aria-label={`โอนแล้ว ${pocket.name}`}
+                    className="w-6 h-6 shrink-0 accent-emerald-600" />
 
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`font-bold text-sm sm:text-base ${isDone ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                        {pocket.name}
+                      <span className={`break-words font-bold text-sm ${isDone ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                        {pocket.emoji} {pocket.name}
                       </span>
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${category?.badgeBg} ${category?.textColor}`}>
                         {category?.emoji} {category?.name}
                       </span>
                     </div>
-                    {pocket.description && (
-                      <p className="text-xs text-slate-400 truncate mt-0.5">
-                        {pocket.description}
-                      </p>
-                    )}
                   </div>
-                </div>
+                </label>
+
+                {(pocket.suballocations || []).length > 0 && (
+                  <div className="space-y-1 rounded-lg bg-slate-50 p-2 text-[10px] text-slate-600">
+                    {(pocket.suballocations || []).map((item) => (
+                      <div key={item.id} className="flex justify-between gap-2">
+                        <span className="truncate">{item.name || 'ยังไม่ตั้งชื่อ'}</span>
+                        <span className="shrink-0 font-semibold">{formatMoney(Number(item[currentMode]) || 0)}</span>
+                      </div>
+                    ))}
+                    {(() => {
+                      const subTotal = pocket.suballocations.reduce((sum, item) => sum + (Number(item[currentMode]) || 0), 0);
+                      const difference = Math.round((pocket.allocatedAmount - subTotal) * 100) / 100;
+                      return <div className={`border-t border-slate-200 pt-1 font-semibold ${Math.abs(difference) < 0.01 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        {Math.abs(difference) < 0.01 ? 'แจกแจงครบตามยอดกระเป๋า' : `${difference > 0 ? 'ยังแจกแจง' : 'รายการย่อยเกิน'} ${formatMoney(Math.abs(difference))}`}
+                      </div>;
+                    })()}
+                  </div>
+                )}
 
                 {/* Right: Copy Buttons & Amount */}
                 <div
-                  className="flex items-center justify-between sm:justify-end gap-2.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100"
+                  className="flex flex-wrap items-center justify-between gap-1 pt-2 border-t border-slate-100"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="text-left sm:text-right">
@@ -395,7 +398,7 @@ export function TransferChecklist({
                     <span className={`text-lg sm:text-xl font-bold font-mono-numeric ${
                       isZero ? 'text-slate-400' : isDone ? 'text-emerald-700' : 'text-slate-900'
                     }`}>
-                      {formatMoney(pocket.allocatedAmount)}
+                      {formatMoney(pocket.allocatedAmount, !Number.isInteger(pocket.allocatedAmount))}
                     </span>
                   </div>
 
@@ -403,7 +406,7 @@ export function TransferChecklist({
                   <button
                     disabled={isZero}
                     onClick={() => handleCopyAmount(pocket)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-xs ${
+                    className={`inline-flex items-center justify-center min-h-11 min-w-11 p-2 rounded-xl text-xs font-semibold transition-all shadow-xs ${
                       isZero
                         ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                         : isAmtCopied
@@ -411,28 +414,19 @@ export function TransferChecklist({
                         : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
                     }`}
                     title="คัดลอกตัวเลขยอดเงิน"
+                    aria-label={`คัดลอกยอด ${pocket.name} ${pocket.allocatedAmount} บาท`}
                   >
                     {isAmtCopied ? (
                       <>
                         <Check className="w-3.5 h-3.5" />
-                        <span>คัดลอกแล้ว!</span>
                       </>
                     ) : (
                       <>
                         <Copy className="w-3.5 h-3.5" />
-                        <span>คัดลอก ฿{pocket.allocatedAmount}</span>
                       </>
                     )}
                   </button>
 
-                  {/* Copy Pocket Name Button */}
-                  <button
-                    onClick={() => handleCopyName(pocket)}
-                    className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors"
-                    title="คัดลอกชื่อกระเป๋า"
-                  >
-                    {isNameCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  </button>
                 </div>
 
               </div>
