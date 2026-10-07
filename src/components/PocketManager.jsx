@@ -226,6 +226,12 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
     setPockets(prev => prev.map(pocket => pocket.folderId === folder.id ? { ...pocket, folderId: '' } : pocket));
     setOpenedFolderId(null);
   };
+  const availablePocketsForFolder = activeFolder
+    ? pockets.filter(pocket => !pocket.folderId && pocket.categoryId === activeFolder.categoryId)
+    : [];
+  const movePocketIntoFolder = (pocket) => {
+    setPockets(prev => prev.map(item => item.id === pocket.id ? { ...item, folderId: activeFolder.id } : item));
+  };
 
   // Render stats for each mode in form
   const r10FormStats = getFormModeStats('round10');
@@ -254,7 +260,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-semibold shadow-md shadow-amber-500/20 transition-all"
             >
               <Plus className="w-4 h-4" />
-              <span>เพิ่มกระเป๋าใหม่</span>
+              <span>{activeFolder ? `เพิ่ม Cloud Pocket ใน ${activeFolder.name}` : 'เพิ่มกระเป๋าใหม่'}</span>
             </button>
 
             <button onClick={addFolder}
@@ -423,6 +429,29 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
         </div>
       )}
 
+      {activeFolder && filteredPockets.length === 0 && (
+        <div className="rounded-2xl border-2 border-dashed border-indigo-200 bg-white p-6 text-center">
+          <div className="text-3xl">📂</div>
+          <h3 className="mt-2 font-bold text-slate-800">Folder นี้ยังไม่มี Cloud Pocket</h3>
+          <p className="mt-1 text-sm text-slate-500">เพิ่มรายการที่จะเห็นใน MAKE และ Checklist เช่น MAKE, TrueMoney หรือเงินสด</p>
+          <button onClick={handleStartAdd} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">
+            <Plus className="h-4 w-4" /> เพิ่ม Cloud Pocket ใน {activeFolder.name}
+          </button>
+        </div>
+      )}
+
+      {activeFolder && availablePocketsForFolder.length > 0 && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h3 className="font-bold text-slate-800">ย้าย Cloud Pocket ที่มีอยู่เข้า {activeFolder.name}</h3>
+          <p className="mt-1 text-xs text-slate-500">ย้ายแล้วกฎเดิมของ Pocket จะใช้แบ่งจากยอด Folder นี้</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {availablePocketsForFolder.map(pocket => <button key={pocket.id} onClick={() => movePocketIntoFolder(pocket)} className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-800 hover:bg-indigo-100">
+              {pocket.emoji} {pocket.name} <span className="ml-1">+ เข้า Folder</span>
+            </button>)}
+          </div>
+        </section>
+      )}
+
       {!openedFolderId && filteredFolders.length > 0 && (
         <section className="space-y-3">
           <div><h3 className="font-bold text-slate-800">📁 Folders <span className="text-xs font-normal text-slate-500">รับเงินจัดสรรจากเงินเดือน แล้วแบ่งต่อให้ Cloud Pocket ด้านใน</span></h3></div>
@@ -430,11 +459,15 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
             {filteredFolders.map(folder => {
               const allocations = [r10Alloc, r25Alloc, specAlloc].map(result => result.folderResults.find(item => item.id === folder.id));
               const folderCategory = CATEGORIES.find(category => category.id === folder.categoryId);
+              const folderPockets = pockets.filter(pocket => pocket.folderId === folder.id);
               return <article key={folder.id} className="rounded-2xl border border-indigo-200 bg-white p-4 shadow-sm">
                 <button onClick={() => setOpenedFolderId(folder.id)} className="w-full text-left">
                   <div className="flex items-center justify-between gap-2"><span className="font-bold text-slate-800">{folder.emoji || '📁'} {folder.name}</span><span className="text-indigo-600 text-xs font-semibold">เปิด Folder →</span></div>
                   <div className="mt-1 flex items-center justify-between text-xs text-slate-500"><span>{folderCategory?.emoji} {folderCategory?.name}</span><span>รวมเงินเดือน {formatMoney((allocations[0]?.allocatedAmount || 0) + (allocations[1]?.allocatedAmount || 0))}</span></div>
                   <div className="mt-1 text-[11px] text-slate-500">รอบ 10 {formatMoney(allocations[0]?.allocatedAmount)} · รอบ 25 {formatMoney(allocations[1]?.allocatedAmount)} · เงินพิเศษ {formatMoney(allocations[2]?.allocatedAmount)}</div>
+                  <div className="mt-2 rounded-lg bg-indigo-50 px-2.5 py-2 text-xs text-indigo-800">
+                    {folderPockets.length === 0 ? 'ยังไม่มี Cloud Pocket ใน Folder นี้' : `Cloud Pocket ใน Folder (${folderPockets.length}): ${folderPockets.map(pocket => pocket.name).join(' · ')}`}
+                  </div>
                   {allocations.some(item => item?.unallocatedAmount > 0) && <div className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">เงินคงเหลือใน Folder: {allocations.map((item, index) => `${['10','25','พิเศษ'][index]} ${formatMoney(item?.unallocatedAmount || 0)}`).join(' · ')}</div>}
                 </button>
                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2" onClick={event => event.stopPropagation()}>
@@ -447,7 +480,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
                         <select aria-label={`${folder.name} ${modeName} รูปแบบ`} value={rule.mode} onChange={event => updateFolder(folder.id, current => ({ ...current, rules: { ...current.rules, [mode]: { ...rule, mode: event.target.value } } }))} className="w-16 rounded border border-slate-200 bg-white px-1 py-1 text-[10px]">
                           <option value="fixed">฿ คงที่</option><option value="percent_remaining">% เปอร์เซ็นต์</option>
                         </select>
-                        <input aria-label={`${folder.name} ${modeName} จำนวน`} type="number" min="0" step={rule.mode === 'fixed' ? '1' : '0.1'} value={rule.value || ''} placeholder="0" onChange={event => updateFolder(folder.id, current => ({ ...current, rules: { ...current.rules, [mode]: { ...rule, value: event.target.value === '' ? 0 : Number(event.target.value) } } }))} className="min-w-0 w-full rounded border border-slate-200 px-2 py-1 text-xs" />
+                        <input aria-label={`${folder.name} ${modeName} จำนวน`} type="number" min="0" max={rule.mode === 'fixed' ? undefined : '100'} step={rule.mode === 'fixed' ? '1' : '0.1'} value={rule.mode === 'percent_remaining' && rule.value > 100 ? 100 : rule.value || ''} placeholder="0" onChange={event => updateFolder(folder.id, current => ({ ...current, rules: { ...current.rules, [mode]: { ...rule, value: event.target.value === '' ? 0 : Math.min(rule.mode === 'percent_remaining' ? 100 : Infinity, Number(event.target.value)) } } }))} className="min-w-0 w-full rounded border border-slate-200 px-2 py-1 text-xs" />
                       </div>
                     </div>;
                   })}
@@ -900,6 +933,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
 
       {/* Pocket List Table/Card Grid with Baht Amount Pill */}
       <div className="space-y-3">
+        {activeFolder && filteredPockets.length > 0 && <h3 className="font-bold text-slate-800">Cloud Pockets ใน {activeFolder.name} <span className="text-xs font-normal text-slate-500">กฎจะคำนวณจากยอด Folder</span></h3>}
         {filteredPockets.map((pocket) => {
           const category = CATEGORIES.find(c => c.id === pocket.categoryId);
           const r10Amt = getEstimatedAmount(pocket.id, 'round10');

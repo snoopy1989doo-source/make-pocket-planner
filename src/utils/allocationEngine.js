@@ -20,7 +20,7 @@ function allocateGroup(total, mode, entries) {
   entries.filter(entry => entry.isActive !== false).forEach(entry => {
     const rule = entry.rules?.[mode] || { mode: 'percent_remaining', value: 0 };
     if (rule.mode === 'fixed') return;
-    const pct = Math.max(0, Number(rule.value) || 0);
+    const pct = Math.min(100, Math.max(0, Number(rule.value) || 0));
     percentConfigured += pct;
     const amount = Math.round((base - fixedTotal) * Math.min(100, pct) / 100 * 100) / 100;
     amounts.set(entry.id, amount);

@@ -125,6 +125,8 @@ export function TransferChecklist({
     if (filterStatus === 'completed' && !isDone) return false;
     return true;
   });
+  const visibleFolderResults = (calculation.folderResults || []).filter(folder => filterCategory === 'all' || folder.categoryId === filterCategory);
+  const folderWarnings = visibleFolderResults.filter(folder => folder.allocatedAmount - folder.childAllocated > 0.01);
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -320,6 +322,14 @@ export function TransferChecklist({
       </div>
 
       {/* Pocket Checklist Rows */}
+      {folderWarnings.length > 0 && (
+        <div className="space-y-2">
+          {folderWarnings.map(folder => <div key={folder.id} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <b>📁 {folder.name}:</b> จัดสรรเข้า Folder {formatMoney(folder.allocatedAmount)} · มี Cloud Pocket ให้โอน {formatMoney(folder.childAllocated)} · ยังไม่มีรายการปลายทาง {formatMoney(folder.allocatedAmount - folder.childAllocated)}
+            {folder.children.length === 0 && <span className="block mt-1">เพิ่ม Cloud Pocket ในหน้านี้: จัดการกระเป๋า & กฎ → เปิด Folder → เพิ่ม Cloud Pocket</span>}
+          </div>)}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-2.5">
         {filteredPockets.length === 0 ? (
           <div className="col-span-2 bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500 text-sm">
@@ -333,16 +343,22 @@ export function TransferChecklist({
             </p>
           </div>
         ) : (
-          filteredPockets.map((pocket) => {
+          filteredPockets.map((pocket, index) => {
             const isDone = !!currentRoundChecks[pocket.id];
             const category = CATEGORIES.find(c => c.id === pocket.categoryId);
             const isAmtCopied = copiedId === `amt_${pocket.id}`;
             const isNameCopied = copiedId === `name_${pocket.id}`;
             const isZero = pocket.allocatedAmount === 0;
+            const previousPocket = filteredPockets[index - 1];
+            const isFolderStart = pocket.folderId && previousPocket?.folderId !== pocket.folderId;
+            const folder = isFolderStart ? visibleFolderResults.find(item => item.id === pocket.folderId) : null;
 
             return (
+              <React.Fragment key={pocket.id}>
+              {folder && <div className="col-span-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2">
+                <div className="flex items-center justify-between gap-2"><b className="text-sm text-indigo-900">📁 {folder.name}</b><span className="text-xs text-indigo-700">Folder {formatMoney(folder.allocatedAmount)} · รายการโอน {formatMoney(folder.childAllocated)}</span></div>
+              </div>}
               <div
-                key={pocket.id}
                 className={`min-w-0 bg-white rounded-2xl border p-3 transition-all flex flex-col justify-between gap-2 select-none group ${
                   isZero
                     ? 'opacity-40 bg-slate-50/70 border-slate-200 cursor-default'
@@ -431,6 +447,7 @@ export function TransferChecklist({
                 </div>
 
               </div>
+              </React.Fragment>
             );
           })
         )}
