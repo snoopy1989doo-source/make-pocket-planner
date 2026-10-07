@@ -1,101 +1,120 @@
 import { CATEGORIES } from '../data/defaultPockets';
 
-/**
- * Calculates allocation for all pockets based on income and selected round mode
- * @param {number} totalIncome - Amount in THB
- * @param {string} mode - 'round10' | 'round25' | 'special'
- * @param {Array} pockets - List of pocket objects
- * @returns {Object} Calculation result with pocket amounts and category breakdown
- */
-export function calculateAllocation(totalIncome, mode, pockets) {
+function allocateGroup(total, mode, entries) {
+  const base = Math.max(0, Number(total) || 0);
+  let remaining = base;
+  let fixedTotal = 0;
+  let variableTotal = 0;
+  let percentConfigured = 0;
+  const amounts = new Map();
+
+  entries.filter(entry => entry.isActive !== false).forEach(entry => {
+    const rule = entry.rules?.[mode] || { mode: 'percent_remaining', value: 0 };
+    if (rule.mode !== 'fixed') return;
+    const amount = Math.min(remaining, Math.max(0, Number(rule.value) || 0));
+    amounts.set(entry.id, amount);
+    remaining -= amount;
+    fixedTotal += amount;
+  });
+
+  entries.filter(entry => entry.isActive !== false).forEach(entry => {
+    const rule = entry.rules?.[mode] || { mode: 'percent_remaining', value: 0 };
+    if (rule.mode === 'fixed') return;
+    const pct = Math.max(0, Number(rule.value) || 0);
+    percentConfigured += pct;
+    const amount = Math.round((base - fixedTotal) * Math.min(100, pct) / 100 * 100) / 100;
+    amounts.set(entry.id, amount);
+    variableTotal += amount;
+  });
+
+  return {
+    amounts,
+    fixedTotal,
+    variableTotal,
+    percentConfigured,
+    unallocated: Math.max(0, Math.round((remaining - variableTotal) * 100) / 100)
+  };
+}
+
+/** Salary is allocated to standalone pockets and folders first; a folder then allocates its own balance to its child pockets. */
+export function calculateAllocation(totalIncome, mode, pockets, folders = []) {
   const income = Math.max(0, Number(totalIncome) || 0);
-  const activePockets = pockets.filter(p => p.isActive);
+  const folderIds = new Set(folders.map(folder => folder.id));
+  const activeFolders = folders.filter(folder => folder.isActive !== false);
+  const directPockets = pockets.filter(p => p.isActive && (!p.folderId || !folderIds.has(p.folderId)));
+  const rootEntries = [...directPockets, ...activeFolders];
+  const rootAllocation = allocateGroup(income, mode, rootEntries);
 
-  // 1. Separate fixed vs percentage rules for this mode
-  let totalFixed = 0;
-  const fixedAllocations = {};
-  const percentAllocations = {};
-
-  activePockets.forEach(pocket => {
-    const rule = pocket.rules?.[mode] || { mode: 'percent_remaining', value: 0 };
-    if (rule.mode === 'fixed') {
-      const fixVal = Math.min(income, Number(rule.value) || 0);
-      fixedAllocations[pocket.id] = fixVal;
-      totalFixed += fixVal;
-    }
-  });
-
-  // If fixed costs exceed income, we clamp
-  const remainingForPercentage = Math.max(0, income - totalFixed);
-
-  // 2. Compute percentage allocations
-  let totalPercentAllocated = 0;
-  let totalPercentConfigured = 0;
-
-  activePockets.forEach(pocket => {
-    const rule = pocket.rules?.[mode] || { mode: 'percent_remaining', value: 0 };
-    if (rule.mode === 'percent_remaining') {
-      const pct = Number(rule.value) || 0;
-      totalPercentConfigured += pct;
-      const amt = Math.round(((pct / 100) * remainingForPercentage) * 100) / 100;
-      percentAllocations[pocket.id] = amt;
-      totalPercentAllocated += amt;
-    }
-  });
-
-  // 3. Assemble final pocket allocation list
-  const pocketResults = activePockets.map(pocket => {
-    const rule = pocket.rules?.[mode] || { mode: 'percent_remaining', value: 0 };
-    const amount = rule.mode === 'fixed' 
-      ? (fixedAllocations[pocket.id] || 0) 
-      : (percentAllocations[pocket.id] || 0);
-
-    const percentOfTotal = income > 0 ? (amount / income) * 100 : 0;
-
+  const pocketResults = [];
+  const folderResults = activeFolders.map(folder => {
+    const folderAmount = rootAllocation.amounts.get(folder.id) || 0;
+    const children = pockets.filter(p => p.isActive && p.folderId === folder.id);
+    const childAllocation = allocateGroup(folderAmount, mode, children);
+    const childResults = children.map(pocket => {
+      const amount = childAllocation.amounts.get(pocket.id) || 0;
+      const result = {
+        ...pocket,
+        folderId: folder.id,
+        folderName: folder.name,
+        allocatedAmount: amount,
+        ruleUsed: pocket.rules?.[mode] || { mode: 'percent_remaining', value: 0 },
+        percentOfTotal: income > 0 ? Math.round(amount / income * 1000) / 10 : 0
+      };
+      pocketResults.push(result);
+      return result;
+    });
     return {
-      ...pocket,
-      allocatedAmount: amount,
-      ruleUsed: rule,
-      percentOfTotal: Math.round(percentOfTotal * 10) / 10
+      ...folder,
+      allocatedAmount: folderAmount,
+      children: childResults,
+      childAllocated: childResults.reduce((sum, p) => sum + p.allocatedAmount, 0),
+      unallocatedAmount: childAllocation.unallocated,
+      percentOfTotal: income > 0 ? Math.round(folderAmount / income * 1000) / 10 : 0
     };
   });
 
-  // 4. Build category breakdown
+  directPockets.forEach(pocket => {
+    const amount = rootAllocation.amounts.get(pocket.id) || 0;
+    pocketResults.push({
+      ...pocket,
+      allocatedAmount: amount,
+      ruleUsed: pocket.rules?.[mode] || { mode: 'percent_remaining', value: 0 },
+      percentOfTotal: income > 0 ? Math.round(amount / income * 1000) / 10 : 0
+    });
+  });
+
   const categoryBreakdown = CATEGORIES.map(cat => {
     const categoryPockets = pocketResults.filter(p => p.categoryId === cat.id);
     const catTotal = categoryPockets.reduce((sum, p) => sum + p.allocatedAmount, 0);
-    const catPercent = income > 0 ? (catTotal / income) * 100 : 0;
-
     return {
       ...cat,
       totalAllocated: Math.round(catTotal * 100) / 100,
-      percentage: Math.round(catPercent * 10) / 10,
+      percentage: income > 0 ? Math.round(catTotal / income * 1000) / 10 : 0,
       pockets: categoryPockets
     };
   });
 
-  const totalAllocated = pocketResults.reduce((sum, p) => sum + p.allocatedAmount, 0);
-  const unallocatedAmount = Math.max(0, Math.round((income - totalAllocated) * 100) / 100);
-
+  const transferTotal = pocketResults.reduce((sum, p) => sum + p.allocatedAmount, 0);
+  const envelopeTotal = rootEntries.reduce((sum, item) => sum + (rootAllocation.amounts.get(item.id) || 0), 0);
   return {
     income,
     mode,
     pocketResults,
+    folderResults,
     categoryBreakdown,
     summary: {
       totalIncome: income,
-      totalFixed: Math.round(totalFixed * 100) / 100,
-      totalVariable: Math.round(totalPercentAllocated * 100) / 100,
-      totalAllocated: Math.round(totalAllocated * 100) / 100,
-      unallocatedAmount,
-      totalPercentConfigured: Math.round(totalPercentConfigured * 10) / 10
+      totalFixed: Math.round(rootAllocation.fixedTotal * 100) / 100,
+      totalVariable: Math.round(rootAllocation.variableTotal * 100) / 100,
+      totalAllocated: Math.round(transferTotal * 100) / 100,
+      totalBudgeted: Math.round(envelopeTotal * 100) / 100,
+      unallocatedAmount: rootAllocation.unallocated,
+      folderUnallocatedAmount: Math.round(folderResults.reduce((sum, folder) => sum + folder.unallocatedAmount, 0) * 100) / 100,
+      totalPercentConfigured: Math.round(rootAllocation.percentConfigured * 10) / 10
     }
   };
 }
 
-/**
- * Format currency with THB symbol or commas
- */
 export function formatMoney(amount, showDecimals = false) {
   if (amount === undefined || amount === null || isNaN(amount)) return '฿0';
   const num = Number(amount);

@@ -19,10 +19,11 @@ import {
 } from 'lucide-react';
 import { formatMoney, calculateAllocation } from '../utils/allocationEngine';
 
-export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 6000, round25: 6000, special: 5000 } }) {
+export function PocketManager({ pockets, setPockets, folders = [], setFolders = () => {}, incomeAmounts = { round10: 6000, round25: 6000, special: 5000 } }) {
   const [editingPocket, setEditingPocket] = useState(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
+  const [openedFolderId, setOpenedFolderId] = useState(null);
   const editorRef = useRef(null);
   const editorOpen = isAddingNew || editingPocket !== null;
   useEffect(() => {
@@ -53,9 +54,9 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
   const baseSpecial = incomeAmounts?.special || 5000;
 
   // Calculate live preview allocations for all 3 modes
-  const r10Alloc = useMemo(() => calculateAllocation(base10, 'round10', pockets), [base10, pockets]);
-  const r25Alloc = useMemo(() => calculateAllocation(base25, 'round25', pockets), [base25, pockets]);
-  const specAlloc = useMemo(() => calculateAllocation(baseSpecial, 'special', pockets), [baseSpecial, pockets]);
+  const r10Alloc = useMemo(() => calculateAllocation(base10, 'round10', pockets, folders), [base10, pockets, folders]);
+  const r25Alloc = useMemo(() => calculateAllocation(base25, 'round25', pockets, folders), [base25, pockets, folders]);
+  const specAlloc = useMemo(() => calculateAllocation(baseSpecial, 'special', pockets, folders), [baseSpecial, pockets, folders]);
 
   // Helper to get estimated amount for an existing pocket in a mode
   const getEstimatedAmount = (pocketId, mode) => {
@@ -70,12 +71,14 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
 
   // Helper to get live breakdown & remaining stats for current formData being edited
   const getFormModeStats = (mode) => {
-    const baseIncome = mode === 'round10' ? base10 : mode === 'round25' ? base25 : baseSpecial;
-    
-    // Construct temporary pockets list with formData
-    const tempPockets = isAddingNew
-      ? [...pockets.filter(p => p.id !== formData.id), formData]
-      : pockets.map(p => p.id === formData.id ? formData : p);
+    const rootIncome = mode === 'round10' ? base10 : mode === 'round25' ? base25 : baseSpecial;
+    const currentCalculation = mode === 'round10' ? r10Alloc : mode === 'round25' ? r25Alloc : specAlloc;
+    const baseIncome = formData.folderId
+      ? (currentCalculation.folderResults.find(folder => folder.id === formData.folderId)?.allocatedAmount || 0)
+      : rootIncome;
+    const tempPockets = formData.folderId
+      ? [...pockets.filter(p => p.folderId === formData.folderId && p.id !== formData.id), formData]
+      : [...pockets.filter(p => !p.folderId && p.id !== formData.id), ...folders, formData];
 
     let fixedSum = 0;
     let pctSum = 0;
@@ -114,6 +117,7 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
       id: newId,
       name: '',
       categoryId: selectedCategoryFilter !== 'all' ? selectedCategoryFilter : 'squirrel',
+      folderId: openedFolderId || '',
       emoji: '💰',
       description: '',
       isActive: true,
@@ -141,11 +145,13 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
       return;
     }
 
+    const parentFolder = folders.find(folder => folder.id === formData.folderId);
+    const pocketToSave = parentFolder ? { ...formData, categoryId: parentFolder.categoryId } : formData;
     if (isAddingNew) {
-      setPockets(prev => [...prev, formData]);
+      setPockets(prev => [...prev, pocketToSave]);
       setIsAddingNew(false);
     } else {
-      setPockets(prev => prev.map(p => p.id === formData.id ? formData : p));
+      setPockets(prev => prev.map(p => p.id === formData.id ? pocketToSave : p));
       setEditingPocket(null);
     }
   };
@@ -168,6 +174,8 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
   const handleResetToDefault = () => {
     if (window.confirm('ต้องการรีเซ็ตกระเป๋าทั้งหมดกลับเป็นค่าเริ่มต้นตามที่กำหนดไว้หรือไม่?')) {
       setPockets(DEFAULT_POCKETS);
+      setFolders([]);
+      setOpenedFolderId(null);
     }
   };
 
@@ -181,6 +189,7 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
           special: { mode: 'percent_remaining', value: 0 }
         }
       })));
+      setFolders(prev => prev.map(folder => ({ ...folder, rules: Object.fromEntries(['round10', 'round25', 'special'].map(mode => [mode, { mode: 'percent_remaining', value: 0 }])) })));
     }
   };
 
@@ -194,12 +203,29 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
           [mode]: { mode: 'percent_remaining', value: 0 }
         }
       })));
+      setFolders(prev => prev.map(folder => ({ ...folder, rules: { ...folder.rules, [mode]: { mode: 'percent_remaining', value: 0 } } })));
     }
   };
 
-  const filteredPockets = selectedCategoryFilter === 'all'
-    ? pockets
-    : pockets.filter(p => p.categoryId === selectedCategoryFilter);
+  const filteredPockets = pockets.filter(p => openedFolderId
+    ? p.folderId === openedFolderId
+    : !p.folderId && (selectedCategoryFilter === 'all' || p.categoryId === selectedCategoryFilter));
+  const filteredFolders = folders.filter(folder => !openedFolderId && (selectedCategoryFilter === 'all' || folder.categoryId === selectedCategoryFilter));
+  const activeFolder = folders.find(folder => folder.id === openedFolderId);
+  const addFolder = () => {
+    const name = window.prompt('ตั้งชื่อ Folder เช่น 1Life');
+    if (!name?.trim()) return;
+    const categoryId = selectedCategoryFilter === 'all' ? 'squirrel' : selectedCategoryFilter;
+    const blankRules = Object.fromEntries(['round10', 'round25', 'special'].map(mode => [mode, { mode: 'percent_remaining', value: 0 }]));
+    setFolders(prev => [...prev, { id: `folder_${Date.now()}`, name: name.trim(), categoryId, emoji: '📁', isActive: true, rules: blankRules }]);
+  };
+  const updateFolder = (folderId, updater) => setFolders(prev => prev.map(folder => folder.id === folderId ? updater(folder) : folder));
+  const deleteFolder = (folder) => {
+    if (!window.confirm(`ลบ Folder “${folder.name}”? กระเป๋าภายในจะยังอยู่และกลับไปจัดสรรจากเงินเดือนโดยตรง`)) return;
+    setFolders(prev => prev.filter(item => item.id !== folder.id));
+    setPockets(prev => prev.map(pocket => pocket.folderId === folder.id ? { ...pocket, folderId: '' } : pocket));
+    setOpenedFolderId(null);
+  };
 
   // Render stats for each mode in form
   const r10FormStats = getFormModeStats('round10');
@@ -229,6 +255,11 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
             >
               <Plus className="w-4 h-4" />
               <span>เพิ่มกระเป๋าใหม่</span>
+            </button>
+
+            <button onClick={addFolder}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold shadow-sm">
+              <Plus className="w-4 h-4" /><span>สร้าง Folder</span>
             </button>
 
             <button
@@ -361,11 +392,11 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          ทั้งหมด ({pockets.length})
+          ทั้งหมด ({pockets.length + folders.length})
         </button>
 
         {CATEGORIES.map(cat => {
-          const count = pockets.filter(p => p.categoryId === cat.id).length;
+          const count = pockets.filter(p => p.categoryId === cat.id).length + folders.filter(folder => folder.categoryId === cat.id).length;
           const isSelected = selectedCategoryFilter === cat.id;
           return (
             <button
@@ -384,6 +415,52 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
           );
         })}
       </div>
+
+      {activeFolder && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-indigo-200 bg-indigo-50 p-3">
+          <div className="min-w-0"><p className="text-xs text-indigo-500">อยู่ใน Folder · ยอดที่จัดสรรจากเงินเดือนต่อเดือน</p><p className="font-bold text-indigo-900">{activeFolder.emoji} {activeFolder.name} · {formatMoney((r10Alloc.folderResults.find(item => item.id === activeFolder.id)?.allocatedAmount || 0) + (r25Alloc.folderResults.find(item => item.id === activeFolder.id)?.allocatedAmount || 0))}</p><p className="mt-1 text-[11px] text-indigo-700">รอบ 10 {formatMoney(r10Alloc.folderResults.find(item => item.id === activeFolder.id)?.allocatedAmount || 0)} · รอบ 25 {formatMoney(r25Alloc.folderResults.find(item => item.id === activeFolder.id)?.allocatedAmount || 0)} · เงินพิเศษ {formatMoney(specAlloc.folderResults.find(item => item.id === activeFolder.id)?.allocatedAmount || 0)}</p></div>
+          <button onClick={() => setOpenedFolderId(null)} className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-indigo-700 border border-indigo-200">← กลับไปหน้า Folder</button>
+        </div>
+      )}
+
+      {!openedFolderId && filteredFolders.length > 0 && (
+        <section className="space-y-3">
+          <div><h3 className="font-bold text-slate-800">📁 Folders <span className="text-xs font-normal text-slate-500">รับเงินจัดสรรจากเงินเดือน แล้วแบ่งต่อให้ Cloud Pocket ด้านใน</span></h3></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {filteredFolders.map(folder => {
+              const allocations = [r10Alloc, r25Alloc, specAlloc].map(result => result.folderResults.find(item => item.id === folder.id));
+              const folderCategory = CATEGORIES.find(category => category.id === folder.categoryId);
+              return <article key={folder.id} className="rounded-2xl border border-indigo-200 bg-white p-4 shadow-sm">
+                <button onClick={() => setOpenedFolderId(folder.id)} className="w-full text-left">
+                  <div className="flex items-center justify-between gap-2"><span className="font-bold text-slate-800">{folder.emoji || '📁'} {folder.name}</span><span className="text-indigo-600 text-xs font-semibold">เปิด Folder →</span></div>
+                  <div className="mt-1 flex items-center justify-between text-xs text-slate-500"><span>{folderCategory?.emoji} {folderCategory?.name}</span><span>รวมเงินเดือน {formatMoney((allocations[0]?.allocatedAmount || 0) + (allocations[1]?.allocatedAmount || 0))}</span></div>
+                  <div className="mt-1 text-[11px] text-slate-500">รอบ 10 {formatMoney(allocations[0]?.allocatedAmount)} · รอบ 25 {formatMoney(allocations[1]?.allocatedAmount)} · เงินพิเศษ {formatMoney(allocations[2]?.allocatedAmount)}</div>
+                  {allocations.some(item => item?.unallocatedAmount > 0) && <div className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">เงินคงเหลือใน Folder: {allocations.map((item, index) => `${['10','25','พิเศษ'][index]} ${formatMoney(item?.unallocatedAmount || 0)}`).join(' · ')}</div>}
+                </button>
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2" onClick={event => event.stopPropagation()}>
+                  {['round10', 'round25', 'special'].map((mode, index) => {
+                    const rule = folder.rules?.[mode] || { mode: 'percent_remaining', value: 0 };
+                    const modeName = ['รอบ 10', 'รอบ 25', 'พิเศษ'][index];
+                    return <div key={mode} className="rounded-xl bg-slate-50 border border-slate-100 p-2">
+                      <label className="text-[10px] text-slate-500">{modeName} · ยอด {formatMoney(allocations[index]?.allocatedAmount || 0)}</label>
+                      <div className="mt-1 flex gap-1">
+                        <select aria-label={`${folder.name} ${modeName} รูปแบบ`} value={rule.mode} onChange={event => updateFolder(folder.id, current => ({ ...current, rules: { ...current.rules, [mode]: { ...rule, mode: event.target.value } } }))} className="w-16 rounded border border-slate-200 bg-white px-1 py-1 text-[10px]">
+                          <option value="fixed">฿ คงที่</option><option value="percent_remaining">% เปอร์เซ็นต์</option>
+                        </select>
+                        <input aria-label={`${folder.name} ${modeName} จำนวน`} type="number" min="0" step={rule.mode === 'fixed' ? '1' : '0.1'} value={rule.value || ''} placeholder="0" onChange={event => updateFolder(folder.id, current => ({ ...current, rules: { ...current.rules, [mode]: { ...rule, value: event.target.value === '' ? 0 : Number(event.target.value) } } }))} className="min-w-0 w-full rounded border border-slate-200 px-2 py-1 text-xs" />
+                      </div>
+                    </div>;
+                  })}
+                </div>
+                <div className="mt-2 flex justify-end gap-1">
+                  <button onClick={() => { const name = window.prompt('แก้ไขชื่อ Folder', folder.name); if (name?.trim()) updateFolder(folder.id, current => ({ ...current, name: name.trim() })); }} className="rounded-lg px-2.5 py-1.5 text-xs text-indigo-700 hover:bg-indigo-50">เปลี่ยนชื่อ</button>
+                  <button onClick={() => deleteFolder(folder)} className="rounded-lg px-2.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50">ลบ Folder</button>
+                </div>
+              </article>;
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Add / Edit Pocket Modal / Form */}
       {(isAddingNew || editingPocket) && (
@@ -453,6 +530,17 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
               </select>
             </div>
 
+            <div className="sm:col-span-12">
+              <label className="text-xs font-semibold text-slate-600 block mb-1">Folder (ถ้ามี) · กฎของ Pocket จะคิดจากยอดใน Folder</label>
+              <select value={formData.folderId || ''} onChange={e => {
+                const folder = folders.find(item => item.id === e.target.value);
+                setFormData({ ...formData, folderId: e.target.value, ...(folder ? { categoryId: folder.categoryId } : {}) });
+              }} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-indigo-500">
+                <option value="">ไม่อยู่ใน Folder · จัดสรรจากเงินเดือนโดยตรง</option>
+                {folders.map(folder => <option key={folder.id} value={folder.id}>{folder.emoji || '📁'} {folder.name}</option>)}
+              </select>
+            </div>
+
             {/* Description */}
             <div className="sm:col-span-12">
               <label className="text-xs font-semibold text-slate-600 block mb-1">คำอธิบายเพิ่มเติม / เป้าหมาย</label>
@@ -466,7 +554,7 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
             </div>
 
             {/* Purpose breakdown inside this pocket */}
-            <div className="sm:col-span-12 border-t border-slate-100 pt-4">
+            {!formData.folderId && <div className="sm:col-span-12 border-t border-slate-100 pt-4">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <div>
                   <h4 className="text-sm font-bold text-slate-800">รายการย่อยในกระเป๋านี้</h4>
@@ -523,7 +611,7 @@ export function PocketManager({ pockets, setPockets, incomeAmounts = { round10: 
                   })}
                 </div>
               </>}
-            </div>
+            </div>}
 
           </div>
 

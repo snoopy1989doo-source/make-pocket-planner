@@ -366,6 +366,7 @@ export function TransferChecklist({
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${category?.badgeBg} ${category?.textColor}`}>
                         {category?.emoji} {category?.name}
                       </span>
+                      {pocket.folderName && <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-indigo-50 text-indigo-700">📁 {pocket.folderName}</span>}
                     </div>
                   </div>
                 </label>

@@ -33,6 +33,7 @@ const DEFAULT_LOANS = [
 export default function App() {
   const [activeTab, setActiveTab] = useState('calculator');
   const [pockets, setPockets] = useLocalStorage('make_pockets_v3', DEFAULT_POCKETS);
+  const [folders, setFolders] = useLocalStorage('make_folders_v1', []);
   const [currentMode, setCurrentMode] = useLocalStorage('make_current_mode', 'round10');
   
   // Independent income amounts for each mode
@@ -86,16 +87,17 @@ export default function App() {
 
   // Compute live allocation
   const calculation = useMemo(() => {
-    return calculateAllocation(currentIncomeAmount, currentMode, pockets);
-  }, [currentIncomeAmount, currentMode, pockets]);
+    return calculateAllocation(currentIncomeAmount, currentMode, pockets, folders);
+  }, [currentIncomeAmount, currentMode, pockets, folders]);
 
   // Export JSON Backup
   const handleExportBackup = () => {
     const backupData = {
       app: 'Money Planner',
-      version: '1.5',
+      version: '1.6',
       exportDate: new Date().toISOString(),
       pockets,
+      folders,
       currentMode,
       incomeAmounts,
       roundDescriptions,
@@ -116,6 +118,7 @@ export default function App() {
   const handleImportBackup = (data) => {
     if (data && data.pockets && Array.isArray(data.pockets)) {
       setPockets(data.pockets);
+      setFolders(Array.isArray(data.folders) ? data.folders : []);
       if (data.history) setHistory(data.history);
       if (data.incomeAmounts) setIncomeAmounts(data.incomeAmounts);
       if (data.roundDescriptions) setRoundDescriptions(data.roundDescriptions);
@@ -132,6 +135,7 @@ export default function App() {
   const handleResetDefaults = () => {
     if (window.confirm('คุณต้องการรีเซ็ตกระเป๋าและกฎทั้งหมดกลับเป็นค่าเริ่มต้น 5 หมวดหมู่ (Squirrel, Rhino, Cat, Bee, Shark) หรือไม่?')) {
       setPockets(DEFAULT_POCKETS);
+      setFolders([]);
       setCheckedPocketsByRound({
         round10: {},
         round25: {},
@@ -186,6 +190,10 @@ export default function App() {
           round25: { mode: 'percent_remaining', value: 0 },
           special: { mode: 'percent_remaining', value: 0 }
         }
+      })));
+      setFolders(prev => prev.map(folder => ({
+        ...folder,
+        rules: Object.fromEntries(['round10', 'round25', 'special'].map(mode => [mode, { mode: 'percent_remaining', value: 0 }]))
       })));
       alert('รีเซ็ตสัดส่วนทุกกระเป๋าเป็น 0 เรียบร้อยแล้ว!');
     }
@@ -264,6 +272,8 @@ export default function App() {
           <PocketManager
             pockets={pockets}
             setPockets={setPockets}
+            folders={folders}
+            setFolders={setFolders}
             incomeAmounts={incomeAmounts}
           />
         )}
