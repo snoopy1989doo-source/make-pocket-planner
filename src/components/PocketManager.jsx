@@ -89,10 +89,14 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
       else pctSum += Number(rule.value) || 0;
     });
 
-    const availForPct = Math.max(0, baseIncome - fixedSum);
+    const fixedUsed = Math.min(baseIncome, Math.max(0, fixedSum));
+    const availForPct = Math.max(0, baseIncome - fixedUsed);
     const roundedPctSum = Math.round(pctSum * 10) / 10;
-    const remainingPct = Math.round((100 - roundedPctSum) * 10) / 10;
-    const remainingBaht = Math.round(((remainingPct / 100) * availForPct) * 100) / 100;
+    const percentUsed = Math.round((availForPct * Math.max(0, roundedPctSum) / 100) * 100) / 100;
+    const remainingBaht = Math.round((availForPct - percentUsed) * 100) / 100;
+    const remainingPct = baseIncome > 0 ? Math.round((remainingBaht / baseIncome) * 1000) / 10 : 0;
+    const fixedPct = baseIncome > 0 ? Math.round((fixedUsed / baseIncome) * 1000) / 10 : 0;
+    const allocatedPct = Math.round((100 - remainingPct) * 10) / 10;
 
     // Estimate for current pocket
     const currentRule = formData.rules?.[mode] || { mode: 'percent_remaining', value: 0 };
@@ -103,10 +107,15 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
     return {
       baseIncome,
       fixedSum,
+      fixedUsed,
+      fixedPct,
       availForPct,
-      pctSum: roundedPctSum,
+      pctSum: allocatedPct,
+      percentRuleSum: roundedPctSum,
+      percentUsed,
       remainingPct,
       remainingBaht,
+      allocatedPct,
       currentPocketAmount
     };
   };
@@ -237,6 +246,9 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
   const r10FormStats = getFormModeStats('round10');
   const r25FormStats = getFormModeStats('round25');
   const specFormStats = getFormModeStats('special');
+  const activeFolderAllocations = activeFolder
+    ? [r10Alloc, r25Alloc, specAlloc].map(result => result.folderResults.find(folder => folder.id === activeFolder.id))
+    : [];
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -424,7 +436,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
 
       {activeFolder && (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-indigo-200 bg-indigo-50 p-3">
-          <div className="min-w-0"><p className="text-xs text-indigo-500">อยู่ใน Folder · ยอดที่จัดสรรจากเงินเดือนต่อเดือน</p><p className="font-bold text-indigo-900">{activeFolder.emoji} {activeFolder.name} · {formatMoney((r10Alloc.folderResults.find(item => item.id === activeFolder.id)?.allocatedAmount || 0) + (r25Alloc.folderResults.find(item => item.id === activeFolder.id)?.allocatedAmount || 0))}</p><p className="mt-1 text-[11px] text-indigo-700">รอบ 10 {formatMoney(r10Alloc.folderResults.find(item => item.id === activeFolder.id)?.allocatedAmount || 0)} · รอบ 25 {formatMoney(r25Alloc.folderResults.find(item => item.id === activeFolder.id)?.allocatedAmount || 0)} · เงินพิเศษ {formatMoney(specAlloc.folderResults.find(item => item.id === activeFolder.id)?.allocatedAmount || 0)}</p></div>
+          <div className="min-w-0"><p className="text-xs text-indigo-500">อยู่ใน Folder · ยอดที่จัดสรรจากเงินเดือนต่อเดือน</p><p className="font-bold text-indigo-900">{activeFolder.emoji} {activeFolder.name} · {formatMoney((activeFolderAllocations[0]?.allocatedAmount || 0) + (activeFolderAllocations[1]?.allocatedAmount || 0))}</p><p className="mt-1 text-[11px] text-indigo-700">รอบ 10 {formatMoney(activeFolderAllocations[0]?.allocatedAmount || 0)} · รอบ 25 {formatMoney(activeFolderAllocations[1]?.allocatedAmount || 0)} · เงินพิเศษ {formatMoney(activeFolderAllocations[2]?.allocatedAmount || 0)}</p><p className="mt-1 rounded-lg bg-white/70 px-2 py-1 text-[11px] text-indigo-800">คงเหลือใน Folder: รอบ 10 ใช้ {formatMoney(activeFolderAllocations[0]?.childAllocated || 0)} / {formatMoney(activeFolderAllocations[0]?.allocatedAmount || 0)} · เหลือ {formatMoney(Math.max(0, (activeFolderAllocations[0]?.allocatedAmount || 0) - (activeFolderAllocations[0]?.childAllocated || 0)))} · รอบ 25 ใช้ {formatMoney(activeFolderAllocations[1]?.childAllocated || 0)} / {formatMoney(activeFolderAllocations[1]?.allocatedAmount || 0)} · เหลือ {formatMoney(Math.max(0, (activeFolderAllocations[1]?.allocatedAmount || 0) - (activeFolderAllocations[1]?.childAllocated || 0)))} · พิเศษเหลือ {formatMoney(Math.max(0, (activeFolderAllocations[2]?.allocatedAmount || 0) - (activeFolderAllocations[2]?.childAllocated || 0)))}</p></div>
           <button onClick={() => setOpenedFolderId(null)} className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-indigo-700 border border-indigo-200">← กลับไปหน้า Folder</button>
         </div>
       )}
@@ -741,7 +753,8 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
                     <span>สัดส่วนรวม: {r10FormStats.pctSum}%</span>
                     <span>{r10FormStats.remainingPct === 0 ? '✅ ครบ 100%' : r10FormStats.remainingPct > 0 ? `เหลืออีก ${r10FormStats.remainingPct}%` : `เกินมา ${Math.abs(r10FormStats.remainingPct)}%`}</span>
                   </div>
-                  <div className="text-[10px] mt-0.5 opacity-90">
+                  <div className="text-[10px] mt-1 space-y-0.5 opacity-90">
+                    <div>Fixed {formatMoney(r10FormStats.fixedUsed)} ({r10FormStats.fixedPct}%) · เปอร์เซ็นต์ตั้งไว้ {r10FormStats.percentRuleSum}% = {formatMoney(r10FormStats.percentUsed)}</div>
                     {r10FormStats.remainingPct > 0
                       ? `ยังเหลือแบ่งได้อีก ≈ ${formatMoney(r10FormStats.remainingBaht)}`
                       : r10FormStats.remainingPct < 0
@@ -818,7 +831,8 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
                     <span>สัดส่วนรวม: {r25FormStats.pctSum}%</span>
                     <span>{r25FormStats.remainingPct === 0 ? '✅ ครบ 100%' : r25FormStats.remainingPct > 0 ? `เหลืออีก ${r25FormStats.remainingPct}%` : `เกินมา ${Math.abs(r25FormStats.remainingPct)}%`}</span>
                   </div>
-                  <div className="text-[10px] mt-0.5 opacity-90">
+                  <div className="text-[10px] mt-1 space-y-0.5 opacity-90">
+                    <div>Fixed {formatMoney(r25FormStats.fixedUsed)} ({r25FormStats.fixedPct}%) · เปอร์เซ็นต์ตั้งไว้ {r25FormStats.percentRuleSum}% = {formatMoney(r25FormStats.percentUsed)}</div>
                     {r25FormStats.remainingPct > 0
                       ? `ยังเหลือแบ่งได้อีก ≈ ${formatMoney(r25FormStats.remainingBaht)}`
                       : r25FormStats.remainingPct < 0
@@ -895,7 +909,8 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
                     <span>สัดส่วนรวม: {specFormStats.pctSum}%</span>
                     <span>{specFormStats.remainingPct === 0 ? '✅ ครบ 100%' : specFormStats.remainingPct > 0 ? `เหลืออีก ${specFormStats.remainingPct}%` : `เกินมา ${Math.abs(specFormStats.remainingPct)}%`}</span>
                   </div>
-                  <div className="text-[10px] mt-0.5 opacity-90">
+                  <div className="text-[10px] mt-1 space-y-0.5 opacity-90">
+                    <div>Fixed {formatMoney(specFormStats.fixedUsed)} ({specFormStats.fixedPct}%) · เปอร์เซ็นต์ตั้งไว้ {specFormStats.percentRuleSum}% = {formatMoney(specFormStats.percentUsed)}</div>
                     {specFormStats.remainingPct > 0
                       ? `ยังเหลือแบ่งได้อีก ≈ ${formatMoney(specFormStats.remainingBaht)}`
                       : specFormStats.remainingPct < 0
