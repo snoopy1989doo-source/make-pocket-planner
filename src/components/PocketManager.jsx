@@ -7,6 +7,7 @@ import {
   Check, 
   X, 
   RotateCcw, 
+  GripVertical,
   HelpCircle, 
   Sparkles,
   Sliders,
@@ -17,14 +18,15 @@ import {
   AlertTriangle,
   Clock
 } from 'lucide-react';
-import { formatMoney, calculateAllocation } from '../utils/allocationEngine';
+import { formatMoney, calculateAllocation, calculateGroupStats, createAgentRulesFromLegacy } from '../utils/allocationEngine';
 
-export function PocketManager({ pockets, setPockets, folders = [], setFolders = () => {}, incomeAmounts = { round10: 6000, round25: 6000, special: 5000 } }) {
+export function PocketManager({ pockets, setPockets, folders = [], setFolders = () => {}, agentRules = {}, setAgentRules = () => {}, incomeAmounts = { round10: 6000, round25: 6000, special: 1000 } }) {
   const [editingPocket, setEditingPocket] = useState(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
   const [openedFolderId, setOpenedFolderId] = useState(null);
   const editorRef = useRef(null);
+  const dragPocketId = useRef(null);
   const editorOpen = isAddingNew || editingPocket !== null;
   useEffect(() => {
     if (!editorOpen) return;
@@ -49,14 +51,14 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
     }
   });
 
-  const base10 = incomeAmounts?.round10 || 6000;
-  const base25 = incomeAmounts?.round25 || 6000;
-  const baseSpecial = incomeAmounts?.special || 5000;
+  const base10 = incomeAmounts?.round10 ?? 6000;
+  const base25 = incomeAmounts?.round25 ?? 6000;
+  const baseSpecial = incomeAmounts?.special ?? 1000;
 
   // Calculate live preview allocations for all 3 modes
-  const r10Alloc = useMemo(() => calculateAllocation(base10, 'round10', pockets, folders), [base10, pockets, folders]);
-  const r25Alloc = useMemo(() => calculateAllocation(base25, 'round25', pockets, folders), [base25, pockets, folders]);
-  const specAlloc = useMemo(() => calculateAllocation(baseSpecial, 'special', pockets, folders), [baseSpecial, pockets, folders]);
+  const r10Alloc = useMemo(() => calculateAllocation(base10, 'round10', pockets, [], agentRules), [base10, pockets, agentRules]);
+  const r25Alloc = useMemo(() => calculateAllocation(base25, 'round25', pockets, [], agentRules), [base25, pockets, agentRules]);
+  const specAlloc = useMemo(() => calculateAllocation(baseSpecial, 'special', pockets, [], agentRules), [baseSpecial, pockets, agentRules]);
 
   // Helper to get estimated amount for an existing pocket in a mode
   const getEstimatedAmount = (pocketId, mode) => {
@@ -73,50 +75,32 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
   const getFormModeStats = (mode) => {
     const rootIncome = mode === 'round10' ? base10 : mode === 'round25' ? base25 : baseSpecial;
     const currentCalculation = mode === 'round10' ? r10Alloc : mode === 'round25' ? r25Alloc : specAlloc;
-    const baseIncome = formData.folderId
-      ? (currentCalculation.folderResults.find(folder => folder.id === formData.folderId)?.allocatedAmount || 0)
-      : rootIncome;
-    const tempPockets = formData.folderId
-      ? [...pockets.filter(p => p.folderId === formData.folderId && p.id !== formData.id), formData]
-      : [...pockets.filter(p => !p.folderId && p.id !== formData.id), ...folders, formData];
-
-    let fixedSum = 0;
-    let pctSum = 0;
-
-    tempPockets.filter(p => p.isActive).forEach(p => {
-      const rule = p.rules?.[mode] || { mode: 'percent_remaining', value: 0 };
-      if (rule.mode === 'fixed') fixedSum += Number(rule.value) || 0;
-      else pctSum += Number(rule.value) || 0;
-    });
-
-    const fixedUsed = Math.min(baseIncome, Math.max(0, fixedSum));
-    const availForPct = Math.max(0, baseIncome - fixedUsed);
-    const roundedPctSum = Math.round(pctSum * 10) / 10;
-    const percentUsed = Math.round((availForPct * Math.max(0, roundedPctSum) / 100) * 100) / 100;
-    const remainingBaht = Math.round((availForPct - percentUsed) * 100) / 100;
-    const remainingPct = baseIncome > 0 ? Math.round((remainingBaht / baseIncome) * 1000) / 10 : 0;
-    const fixedPct = baseIncome > 0 ? Math.round((fixedUsed / baseIncome) * 1000) / 10 : 0;
-    const allocatedPct = Math.round((100 - remainingPct) * 10) / 10;
-
-    // Estimate for current pocket
-    const currentRule = formData.rules?.[mode] || { mode: 'percent_remaining', value: 0 };
-    const currentPocketAmount = currentRule.mode === 'fixed'
-      ? Number(currentRule.value) || 0
-      : Math.round(((Number(currentRule.value) || 0) / 100) * availForPct);
+    const agentBudget = currentCalculation.agentResults.find(agent => agent.id === formData.categoryId)?.allocatedAmount || 0;
+    const agentPockets = pockets.filter(p => p.categoryId === formData.categoryId);
+    const tempPockets = agentPockets.some(p => p.id === formData.id)
+      ? agentPockets.map(p => p.id === formData.id ? formData : p)
+      : [...agentPockets, formData];
+    const stats = calculateGroupStats(agentBudget, tempPockets, mode, (pocket, selectedMode) => pocket.rules?.[selectedMode]);
+    const rule = formData.rules?.[mode] || { mode: 'percent_remaining', value: 0 };
+    const percentTotal = tempPockets.filter(p => p.isActive && p.rules?.[mode]?.mode !== 'fixed').reduce((sum, p) => sum + Math.max(0, Number(p.rules?.[mode]?.value) || 0), 0);
+    const percentRemaining = Math.max(0, agentBudget - stats.fixedAllocated);
+    const currentPocketAmount = stats.amounts.get(formData.id) || 0;
 
     return {
-      baseIncome,
-      fixedSum,
-      fixedUsed,
-      fixedPct,
-      availForPct,
-      pctSum: allocatedPct,
-      percentRuleSum: roundedPctSum,
-      percentUsed,
-      remainingPct,
-      remainingBaht,
-      allocatedPct,
-      currentPocketAmount
+      baseIncome: agentBudget,
+      fixedSum: stats.fixedRequested,
+      fixedUsed: stats.fixedAllocated,
+      fixedPct: agentBudget > 0 ? Math.round(stats.fixedAllocated / agentBudget * 1000) / 10 : 0,
+      availForPct: percentRemaining,
+      pctSum: stats.allocatedPercent,
+      percentRuleSum: Math.round(percentTotal * 10) / 10,
+      percentUsed: stats.percentAllocated,
+      remainingPct: stats.remainingPercent,
+      remainingBaht: stats.remaining,
+      allocatedPct: stats.allocatedPercent,
+      currentPocketAmount,
+      requestedCurrent: rule.mode === 'fixed' ? Number(rule.value) || 0 : currentPocketAmount,
+      overBudget: stats.overBudget
     };
   };
 
@@ -126,7 +110,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
       id: newId,
       name: '',
       categoryId: selectedCategoryFilter !== 'all' ? selectedCategoryFilter : 'squirrel',
-      folderId: openedFolderId || '',
+      folderId: '',
       emoji: '💰',
       description: '',
       isActive: true,
@@ -154,8 +138,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
       return;
     }
 
-    const parentFolder = folders.find(folder => folder.id === formData.folderId);
-    const pocketToSave = parentFolder ? { ...formData, categoryId: parentFolder.categoryId } : formData;
+    const { folderId, ...pocketToSave } = formData;
     if (isAddingNew) {
       setPockets(prev => [...prev, pocketToSave]);
       setIsAddingNew(false);
@@ -184,6 +167,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
     if (window.confirm('ต้องการรีเซ็ตกระเป๋าทั้งหมดกลับเป็นค่าเริ่มต้นตามที่กำหนดไว้หรือไม่?')) {
       setPockets(DEFAULT_POCKETS);
       setFolders([]);
+      setAgentRules(createAgentRulesFromLegacy(DEFAULT_POCKETS));
       setOpenedFolderId(null);
     }
   };
@@ -198,6 +182,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
           special: { mode: 'percent_remaining', value: 0 }
         }
       })));
+      setAgentRules(prev => Object.fromEntries(CATEGORIES.map(category => [category.id, Object.fromEntries(['round10', 'round25', 'special'].map(mode => [mode, { mode: 'percent_remaining', value: 0 }]))])));
       setFolders(prev => prev.map(folder => ({ ...folder, rules: Object.fromEntries(['round10', 'round25', 'special'].map(mode => [mode, { mode: 'percent_remaining', value: 0 }])) })));
     }
   };
@@ -212,21 +197,29 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
           [mode]: { mode: 'percent_remaining', value: 0 }
         }
       })));
+      setAgentRules(prev => Object.fromEntries(CATEGORIES.map(category => [category.id, { ...(prev?.[category.id] || {}), [mode]: { mode: 'percent_remaining', value: 0 } }])));
       setFolders(prev => prev.map(folder => ({ ...folder, rules: { ...folder.rules, [mode]: { mode: 'percent_remaining', value: 0 } } })));
     }
   };
 
-  const filteredPockets = pockets.filter(p => openedFolderId
-    ? p.folderId === openedFolderId
-    : !p.folderId && (selectedCategoryFilter === 'all' || p.categoryId === selectedCategoryFilter));
-  const filteredFolders = folders.filter(folder => !openedFolderId && (selectedCategoryFilter === 'all' || folder.categoryId === selectedCategoryFilter));
+  const filteredPockets = pockets.filter(p => selectedCategoryFilter === 'all' || p.categoryId === selectedCategoryFilter);
+  const filteredFolders = [];
   const activeFolder = folders.find(folder => folder.id === openedFolderId);
-  const addFolder = () => {
-    const name = window.prompt('ตั้งชื่อ Folder เช่น 1Life');
-    if (!name?.trim()) return;
-    const categoryId = selectedCategoryFilter === 'all' ? 'squirrel' : selectedCategoryFilter;
-    const blankRules = Object.fromEntries(['round10', 'round25', 'special'].map(mode => [mode, { mode: 'percent_remaining', value: 0 }]));
-    setFolders(prev => [...prev, { id: `folder_${Date.now()}`, name: name.trim(), categoryId, emoji: '📁', isActive: true, rules: blankRules }]);
+  const updateAgentRule = (categoryId, mode, change) => setAgentRules(previous => ({
+    ...previous,
+    [categoryId]: { ...(previous?.[categoryId] || {}), [mode]: { ...(previous?.[categoryId]?.[mode] || { mode: 'percent_remaining', value: 0 }), ...change } }
+  }));
+  const reorderPocket = (sourceId, targetId) => {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    setPockets(previous => {
+      const from = previous.findIndex(p => p.id === sourceId);
+      const to = previous.findIndex(p => p.id === targetId);
+      if (from < 0 || to < 0 || previous[from].categoryId !== previous[to].categoryId) return previous;
+      const next = [...previous];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
   };
   const updateFolder = (folderId, updater) => setFolders(prev => prev.map(folder => folder.id === folderId ? updater(folder) : folder));
   const deleteFolder = (folder) => {
@@ -246,9 +239,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
   const r10FormStats = getFormModeStats('round10');
   const r25FormStats = getFormModeStats('round25');
   const specFormStats = getFormModeStats('special');
-  const activeFolderAllocations = activeFolder
-    ? [r10Alloc, r25Alloc, specAlloc].map(result => result.folderResults.find(folder => folder.id === activeFolder.id))
-    : [];
+  const activeFolderAllocations = [];
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -262,7 +253,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
               <span>จัดการ Cloud Pockets & กฎการกระจายเงิน</span>
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              กำหนดสัดส่วน %, ยอด Fix Cost และดูสัดส่วนคงเหลือ/ยอดเงินที่แบ่งได้แบบ Real-time
+              แบ่งเงินเดือนให้ Agent ก่อน แล้วกำหนดงบ Cloud Pocket จากเงินของ Agent นั้น
             </p>
           </div>
 
@@ -273,11 +264,6 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
             >
               <Plus className="w-4 h-4" />
               <span>{activeFolder ? `เพิ่ม Cloud Pocket ใน ${activeFolder.name}` : 'เพิ่มกระเป๋าใหม่'}</span>
-            </button>
-
-            <button onClick={addFolder}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold shadow-sm">
-              <Plus className="w-4 h-4" /><span>สร้าง Folder</span>
             </button>
 
             <button
@@ -304,20 +290,20 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
         <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
           {/* Round 10 */}
           <div className={`p-3.5 rounded-xl border flex flex-col justify-between ${
-            r10Alloc.summary.unallocatedAmount > 0 ? 'bg-blue-50/70 border-blue-200' : r10Alloc.summary.totalPercentConfigured > 100 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-200/70'
+            r10Alloc.summary.unallocatedToAgents > 0 ? 'bg-blue-50/70 border-blue-200' : r10Alloc.summary.totalPercentConfigured > 100 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-200/70'
           }`}>
             <div>
               <div className="font-bold text-slate-800 mb-1 flex items-center justify-between">
                 <span>🗓️ รอบ 10 (ฐาน {formatMoney(base10)})</span>
                 <span className={`font-bold px-1.5 py-0.5 rounded ${
-                  r10Alloc.summary.totalPercentConfigured === 100 ? 'text-emerald-700 bg-emerald-100' : 'text-amber-800 bg-amber-100'
+                  r10Alloc.summary.agentAllocatedPercent === 100 && r10Alloc.summary.totalPercentConfigured <= 100 ? 'text-emerald-700 bg-emerald-100' : 'text-amber-800 bg-amber-100'
                 }`}>
-                  รวม {r10Alloc.summary.totalPercentConfigured}%
+                  จัดแล้ว {r10Alloc.summary.agentAllocatedPercent}%
                 </span>
               </div>
               <div className="flex justify-between text-slate-500 mt-1">
-                <span>Fixed: <b>{formatMoney(r10Alloc.summary.totalFixed)}</b></span>
-                <span>เหลือแบ่งได้: <b className="text-slate-700">{formatMoney(r10Alloc.summary.unallocatedAmount)}</b></span>
+                <span>Agent Fixed: <b>{formatMoney(r10Alloc.summary.agentFixed)}</b></span>
+                <span>เงินเดือนยังไม่ลง Agent: <b className="text-slate-700">{formatMoney(r10Alloc.summary.unallocatedToAgents)}</b></span>
               </div>
             </div>
             
@@ -336,20 +322,20 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
 
           {/* Round 25 */}
           <div className={`p-3.5 rounded-xl border flex flex-col justify-between ${
-            r25Alloc.summary.unallocatedAmount > 0 ? 'bg-blue-50/70 border-blue-200' : r25Alloc.summary.totalPercentConfigured > 100 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-200/70'
+            r25Alloc.summary.unallocatedToAgents > 0 ? 'bg-blue-50/70 border-blue-200' : r25Alloc.summary.totalPercentConfigured > 100 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-200/70'
           }`}>
             <div>
               <div className="font-bold text-slate-800 mb-1 flex items-center justify-between">
                 <span>📅 รอบ 25 (ฐาน {formatMoney(base25)})</span>
                 <span className={`font-bold px-1.5 py-0.5 rounded ${
-                  r25Alloc.summary.totalPercentConfigured === 100 ? 'text-emerald-700 bg-emerald-100' : 'text-amber-800 bg-amber-100'
+                  r25Alloc.summary.agentAllocatedPercent === 100 && r25Alloc.summary.totalPercentConfigured <= 100 ? 'text-emerald-700 bg-emerald-100' : 'text-amber-800 bg-amber-100'
                 }`}>
-                  รวม {r25Alloc.summary.totalPercentConfigured}%
+                  จัดแล้ว {r25Alloc.summary.agentAllocatedPercent}%
                 </span>
               </div>
               <div className="flex justify-between text-slate-500 mt-1">
-                <span>Fixed: <b>{formatMoney(r25Alloc.summary.totalFixed)}</b></span>
-                <span>เหลือแบ่งได้: <b className="text-slate-700">{formatMoney(r25Alloc.summary.unallocatedAmount)}</b></span>
+                <span>Agent Fixed: <b>{formatMoney(r25Alloc.summary.agentFixed)}</b></span>
+                <span>เงินเดือนยังไม่ลง Agent: <b className="text-slate-700">{formatMoney(r25Alloc.summary.unallocatedToAgents)}</b></span>
               </div>
             </div>
 
@@ -368,20 +354,20 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
 
           {/* Special */}
           <div className={`p-3.5 rounded-xl border flex flex-col justify-between ${
-            specAlloc.summary.unallocatedAmount > 0 ? 'bg-blue-50/70 border-blue-200' : specAlloc.summary.totalPercentConfigured > 100 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-200/70'
+            specAlloc.summary.unallocatedToAgents > 0 ? 'bg-blue-50/70 border-blue-200' : specAlloc.summary.totalPercentConfigured > 100 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-200/70'
           }`}>
             <div>
               <div className="font-bold text-slate-800 mb-1 flex items-center justify-between">
                 <span>✨ เงินพิเศษ (ฐาน {formatMoney(baseSpecial)})</span>
                 <span className={`font-bold px-1.5 py-0.5 rounded ${
-                  specAlloc.summary.totalPercentConfigured === 100 ? 'text-emerald-700 bg-emerald-100' : 'text-amber-800 bg-amber-100'
+                  specAlloc.summary.agentAllocatedPercent === 100 && specAlloc.summary.totalPercentConfigured <= 100 ? 'text-emerald-700 bg-emerald-100' : 'text-amber-800 bg-amber-100'
                 }`}>
-                  รวม {specAlloc.summary.totalPercentConfigured}%
+                  จัดแล้ว {specAlloc.summary.agentAllocatedPercent}%
                 </span>
               </div>
               <div className="flex justify-between text-slate-500 mt-1">
-                <span>Fixed: <b>{formatMoney(specAlloc.summary.totalFixed)}</b></span>
-                <span>เหลือแบ่งได้: <b className="text-slate-700">{formatMoney(specAlloc.summary.unallocatedAmount)}</b></span>
+                <span>Agent Fixed: <b>{formatMoney(specAlloc.summary.agentFixed)}</b></span>
+                <span>เงินเดือนยังไม่ลง Agent: <b className="text-slate-700">{formatMoney(specAlloc.summary.unallocatedToAgents)}</b></span>
               </div>
             </div>
 
@@ -400,6 +386,38 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
         </div>
       </div>
 
+      <section className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4 sm:p-5 space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div><h3 className="font-bold text-indigo-950">ขั้นที่ 1 · จัดสรรเงินเดือนให้ Agent</h3><p className="text-xs text-indigo-800">เปอร์เซ็นต์คิดจากเงินที่เหลือหลังหักยอดคงที่ของ Agent ทั้งหมด</p></div>
+          <div className="text-right text-xs font-semibold text-indigo-900">เหลือยังไม่จัดให้ Agent: {formatMoney(r10Alloc.summary.unallocatedToAgents)} · {formatMoney(r25Alloc.summary.unallocatedToAgents)} · {formatMoney(specAlloc.summary.unallocatedToAgents)}</div>
+        </div>
+        <div className="space-y-2">
+          {CATEGORIES.map(agent => {
+            const results = [r10Alloc, r25Alloc, specAlloc].map(allocation => allocation.agentResults.find(item => item.id === agent.id));
+            return <article key={agent.id} className="rounded-xl border border-white bg-white p-3 shadow-sm">
+              <div className="flex items-center justify-between gap-2"><strong className="text-sm">{agent.emoji} {agent.name}</strong><span className="text-[11px] text-slate-600">ได้งบ {formatMoney(results[0]?.allocatedAmount || 0)} / {formatMoney(results[1]?.allocatedAmount || 0)} / {formatMoney(results[2]?.allocatedAmount || 0)}</span></div>
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {['round10', 'round25', 'special'].map((mode, index) => {
+                  const rule = agentRules?.[agent.id]?.[mode] || { mode: 'percent_remaining', value: 0 };
+                  const base = [base10, base25, baseSpecial][index];
+                  const result = results[index];
+                  const capped = rule.mode === 'fixed' && (result?.allocatedAmount || 0) < (Number(rule.value) || 0);
+                  return <div key={mode} className="rounded-lg bg-slate-50 p-2">
+                    <label className="block text-[10px] font-semibold text-slate-500">{['รอบ 10', 'รอบ 25', 'เงินพิเศษ'][index]} · จาก {formatMoney(base)}</label>
+                    <div className="mt-1 flex gap-1">
+                      <select aria-label={`${agent.name} ${mode} รูปแบบ`} value={rule.mode} onChange={event => updateAgentRule(agent.id, mode, { mode: event.target.value })} className="w-24 rounded border border-slate-200 bg-white px-1.5 py-1.5 text-xs"><option value="fixed">฿ คงที่</option><option value="percent_remaining">% ของยอดรวม</option></select>
+                      <input aria-label={`${agent.name} ${mode} จำนวน`} type="number" min="0" max={rule.mode === 'fixed' ? undefined : 100} step={rule.mode === 'fixed' ? '1' : '0.1'} value={rule.value || ''} placeholder="0" onFocus={event => event.target.select()} onChange={event => { const raw = event.target.value.replace(/^0+(?=\d)/, ''); updateAgentRule(agent.id, mode, { value: raw === '' ? 0 : Math.min(rule.mode === 'fixed' ? Infinity : 100, Math.max(0, Number(raw))) }); }} className="min-w-0 w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold" />
+                    </div>
+                    <div className={`mt-1 text-[10px] ${capped ? 'text-rose-700' : 'text-slate-600'}`}>จัดได้ {formatMoney(result?.allocatedAmount || 0)}{capped ? ` · ขาด ${formatMoney((Number(rule.value) || 0) - (result?.allocatedAmount || 0))}` : ''}</div>
+                  </div>;
+                })}
+              </div>
+            </article>;
+          })}
+        </div>
+        <div className="rounded-lg bg-white/80 px-3 py-2 text-[11px] text-indigo-900">ยอดที่จัดให้ Agent {formatMoney(r10Alloc.summary.totalBudgeted)} / {formatMoney(r25Alloc.summary.totalBudgeted)} / {formatMoney(specAlloc.summary.totalBudgeted)} · ฐานเงินแต่ละรอบ {formatMoney(base10)} / {formatMoney(base25)} / {formatMoney(baseSpecial)}</div>
+      </section>
+
       {/* Category Tabs Filter */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
         <button
@@ -410,11 +428,11 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          ทั้งหมด ({pockets.length + folders.length})
+          ทั้งหมด ({pockets.length})
         </button>
 
         {CATEGORIES.map(cat => {
-          const count = pockets.filter(p => p.categoryId === cat.id).length + folders.filter(folder => folder.categoryId === cat.id).length;
+          const count = pockets.filter(p => p.categoryId === cat.id).length;
           const isSelected = selectedCategoryFilter === cat.id;
           return (
             <button
@@ -575,17 +593,6 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
               </select>
             </div>
 
-            <div className="sm:col-span-12">
-              <label className="text-xs font-semibold text-slate-600 block mb-1">Folder (ถ้ามี) · กฎของ Pocket จะคิดจากยอดใน Folder</label>
-              <select value={formData.folderId || ''} onChange={e => {
-                const folder = folders.find(item => item.id === e.target.value);
-                setFormData({ ...formData, folderId: e.target.value, ...(folder ? { categoryId: folder.categoryId } : {}) });
-              }} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-indigo-500">
-                <option value="">ไม่อยู่ใน Folder · จัดสรรจากเงินเดือนโดยตรง</option>
-                {folders.map(folder => <option key={folder.id} value={folder.id}>{folder.emoji || '📁'} {folder.name}</option>)}
-              </select>
-            </div>
-
             {/* Description */}
             <div className="sm:col-span-12">
               <label className="text-xs font-semibold text-slate-600 block mb-1">คำอธิบายเพิ่มเติม / เป้าหมาย</label>
@@ -599,7 +606,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
             </div>
 
             {/* Purpose breakdown inside this pocket */}
-            {!formData.folderId && <div className="sm:col-span-12 border-t border-slate-100 pt-4">
+            <div className="sm:col-span-12 border-t border-slate-100 pt-4">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <div>
                   <h4 className="text-sm font-bold text-slate-800">รายการย่อยในกระเป๋านี้</h4>
@@ -656,7 +663,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
                   })}
                 </div>
               </>}
-            </div>}
+            </div>
 
           </div>
 
@@ -719,6 +726,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
                         type="number"
                         step="0.5"
                         min="0"
+                        max={formData.rules.round10.mode === 'fixed' ? undefined : 100}
                         value={formData.rules.round10.value === 0 ? '' : formData.rules.round10.value}
                         placeholder="0"
                         onFocus={(e) => e.target.select()}
@@ -728,7 +736,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
                             ...formData,
                             rules: {
                               ...formData.rules,
-                              round10: { ...formData.rules.round10, value: raw === '' ? 0 : Number(raw) }
+                              round10: { ...formData.rules.round10, value: raw === '' ? 0 : Math.min(formData.rules.round10.mode === 'fixed' ? Infinity : 100, Math.max(0, Number(raw))) }
                             }
                           });
                         }}
@@ -754,7 +762,8 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
                     <span>{r10FormStats.remainingPct === 0 ? '✅ ครบ 100%' : r10FormStats.remainingPct > 0 ? `เหลืออีก ${r10FormStats.remainingPct}%` : `เกินมา ${Math.abs(r10FormStats.remainingPct)}%`}</span>
                   </div>
                   <div className="text-[10px] mt-1 space-y-0.5 opacity-90">
-                    <div>Fixed {formatMoney(r10FormStats.fixedUsed)} ({r10FormStats.fixedPct}%) · เปอร์เซ็นต์ตั้งไว้ {r10FormStats.percentRuleSum}% = {formatMoney(r10FormStats.percentUsed)}</div>
+                    <div>ฐาน Agent {formatMoney(r10FormStats.baseIncome)} · Fixed ตั้งไว้ {formatMoney(r10FormStats.fixedSum)} จัดได้ {formatMoney(r10FormStats.fixedUsed)} ({r10FormStats.fixedPct}%) · % ตั้งไว้ {r10FormStats.percentRuleSum}% ได้ {formatMoney(r10FormStats.percentUsed)}</div>
+                    {r10FormStats.overBudget > 0 && <div className="font-semibold text-rose-700">Fixed เกินงบ Agent {formatMoney(r10FormStats.overBudget)} · ยอดที่ตั้งให้กระเป๋านี้ {formatMoney(r10FormStats.requestedCurrent)} แต่จัดได้ {formatMoney(r10FormStats.currentPocketAmount)}</div>}
                     {r10FormStats.remainingPct > 0
                       ? `ยังเหลือแบ่งได้อีก ≈ ${formatMoney(r10FormStats.remainingBaht)}`
                       : r10FormStats.remainingPct < 0
@@ -797,6 +806,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
                         type="number"
                         step="0.5"
                         min="0"
+                        max={formData.rules.round25.mode === 'fixed' ? undefined : 100}
                         value={formData.rules.round25.value === 0 ? '' : formData.rules.round25.value}
                         placeholder="0"
                         onFocus={(e) => e.target.select()}
@@ -806,7 +816,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
                             ...formData,
                             rules: {
                               ...formData.rules,
-                              round25: { ...formData.rules.round25, value: raw === '' ? 0 : Number(raw) }
+                              round25: { ...formData.rules.round25, value: raw === '' ? 0 : Math.min(formData.rules.round25.mode === 'fixed' ? Infinity : 100, Math.max(0, Number(raw))) }
                             }
                           });
                         }}
@@ -832,7 +842,8 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
                     <span>{r25FormStats.remainingPct === 0 ? '✅ ครบ 100%' : r25FormStats.remainingPct > 0 ? `เหลืออีก ${r25FormStats.remainingPct}%` : `เกินมา ${Math.abs(r25FormStats.remainingPct)}%`}</span>
                   </div>
                   <div className="text-[10px] mt-1 space-y-0.5 opacity-90">
-                    <div>Fixed {formatMoney(r25FormStats.fixedUsed)} ({r25FormStats.fixedPct}%) · เปอร์เซ็นต์ตั้งไว้ {r25FormStats.percentRuleSum}% = {formatMoney(r25FormStats.percentUsed)}</div>
+                    <div>ฐาน Agent {formatMoney(r25FormStats.baseIncome)} · Fixed ตั้งไว้ {formatMoney(r25FormStats.fixedSum)} จัดได้ {formatMoney(r25FormStats.fixedUsed)} ({r25FormStats.fixedPct}%) · % ตั้งไว้ {r25FormStats.percentRuleSum}% ได้ {formatMoney(r25FormStats.percentUsed)}</div>
+                    {r25FormStats.overBudget > 0 && <div className="font-semibold text-rose-700">Fixed เกินงบ Agent {formatMoney(r25FormStats.overBudget)} · ยอดที่ตั้งให้กระเป๋านี้ {formatMoney(r25FormStats.requestedCurrent)} แต่จัดได้ {formatMoney(r25FormStats.currentPocketAmount)}</div>}
                     {r25FormStats.remainingPct > 0
                       ? `ยังเหลือแบ่งได้อีก ≈ ${formatMoney(r25FormStats.remainingBaht)}`
                       : r25FormStats.remainingPct < 0
@@ -875,6 +886,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
                         type="number"
                         step="0.5"
                         min="0"
+                        max={formData.rules.special.mode === 'fixed' ? undefined : 100}
                         value={formData.rules.special.value === 0 ? '' : formData.rules.special.value}
                         placeholder="0"
                         onFocus={(e) => e.target.select()}
@@ -884,7 +896,7 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
                             ...formData,
                             rules: {
                               ...formData.rules,
-                              special: { ...formData.rules.special, value: raw === '' ? 0 : Number(raw) }
+                              special: { ...formData.rules.special, value: raw === '' ? 0 : Math.min(formData.rules.special.mode === 'fixed' ? Infinity : 100, Math.max(0, Number(raw))) }
                             }
                           });
                         }}
@@ -910,7 +922,8 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
                     <span>{specFormStats.remainingPct === 0 ? '✅ ครบ 100%' : specFormStats.remainingPct > 0 ? `เหลืออีก ${specFormStats.remainingPct}%` : `เกินมา ${Math.abs(specFormStats.remainingPct)}%`}</span>
                   </div>
                   <div className="text-[10px] mt-1 space-y-0.5 opacity-90">
-                    <div>Fixed {formatMoney(specFormStats.fixedUsed)} ({specFormStats.fixedPct}%) · เปอร์เซ็นต์ตั้งไว้ {specFormStats.percentRuleSum}% = {formatMoney(specFormStats.percentUsed)}</div>
+                    <div>ฐาน Agent {formatMoney(specFormStats.baseIncome)} · Fixed ตั้งไว้ {formatMoney(specFormStats.fixedSum)} จัดได้ {formatMoney(specFormStats.fixedUsed)} ({specFormStats.fixedPct}%) · % ตั้งไว้ {specFormStats.percentRuleSum}% ได้ {formatMoney(specFormStats.percentUsed)}</div>
+                    {specFormStats.overBudget > 0 && <div className="font-semibold text-rose-700">Fixed เกินงบ Agent {formatMoney(specFormStats.overBudget)} · ยอดที่ตั้งให้กระเป๋านี้ {formatMoney(specFormStats.requestedCurrent)} แต่จัดได้ {formatMoney(specFormStats.currentPocketAmount)}</div>}
                     {specFormStats.remainingPct > 0
                       ? `ยังเหลือแบ่งได้อีก ≈ ${formatMoney(specFormStats.remainingBaht)}`
                       : specFormStats.remainingPct < 0
@@ -948,7 +961,8 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
 
       {/* Pocket List Table/Card Grid with Baht Amount Pill */}
       <div className="space-y-3">
-        {activeFolder && filteredPockets.length > 0 && <h3 className="font-bold text-slate-800">Cloud Pockets ใน {activeFolder.name} <span className="text-xs font-normal text-slate-500">กฎจะคำนวณจากยอด Folder</span></h3>}
+        <h3 className="font-bold text-slate-800">ขั้นที่ 2 · Cloud Pockets แบ่งจากงบ Agent</h3>
+        <p className="text-xs text-slate-500">ลากปุ่ม ☰ บนมือถือเพื่อจัดลำดับรายการ · ฐานคำนวณรอบ 10 / 25 / พิเศษ: {formatMoney(r10Alloc.agentResults.find(agent => agent.id === selectedCategoryFilter)?.allocatedAmount || 0)} / {formatMoney(r25Alloc.agentResults.find(agent => agent.id === selectedCategoryFilter)?.allocatedAmount || 0)} / {formatMoney(specAlloc.agentResults.find(agent => agent.id === selectedCategoryFilter)?.allocatedAmount || 0)}{selectedCategoryFilter === 'all' ? ' (เลือก Agent เพื่อดูงบ)' : ''}</p>
         {filteredPockets.map((pocket) => {
           const category = CATEGORIES.find(c => c.id === pocket.categoryId);
           const r10Amt = getEstimatedAmount(pocket.id, 'round10');
@@ -958,6 +972,14 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
           return (
             <div
               key={pocket.id}
+              data-pocket-id={pocket.id}
+              onPointerMove={event => {
+                if (!dragPocketId.current) return;
+                const targetId = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-pocket-id]')?.dataset.pocketId;
+                if (targetId) reorderPocket(dragPocketId.current, targetId);
+              }}
+              onPointerUp={() => { dragPocketId.current = null; }}
+              onPointerCancel={() => { dragPocketId.current = null; }}
               className={`bg-white rounded-2xl border p-4 transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 ${
                 !pocket.isActive ? 'opacity-50 bg-slate-50/80 border-slate-200' : 'border-slate-200 hover:border-slate-300 shadow-xs'
               }`}
@@ -1025,6 +1047,18 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
 
               {/* Right Action buttons */}
               <div className="flex items-center justify-end gap-1 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                <button
+                  type="button"
+                  aria-label={`ลากเพื่อจัดลำดับ ${pocket.name}`}
+                  title="ลากเพื่อจัดลำดับ"
+                  style={{ touchAction: 'none' }}
+                  onPointerDown={event => {
+                    event.preventDefault();
+                    dragPocketId.current = pocket.id;
+                    event.currentTarget.closest('[data-pocket-id]')?.setPointerCapture(event.pointerId);
+                  }}
+                  className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 cursor-grab active:cursor-grabbing"
+                ><GripVertical className="w-4 h-4" /></button>
                 <button
                   onClick={() => handleToggleActive(pocket.id)}
                   title={pocket.isActive ? 'ปิดการใช้งาน' : 'เปิดการใช้งาน'}

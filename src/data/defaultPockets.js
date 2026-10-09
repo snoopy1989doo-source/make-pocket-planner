@@ -385,7 +385,7 @@ export const ROUND_PRESETS = [
     id: 'special',
     title: 'เงินพิเศษ (Special Income)',
     shortName: 'เงินพิเศษ',
-    defaultAmount: 5000,
+    defaultAmount: 1000,
     icon: '✨',
     description: 'โบนัส, กำไรเทรด, งานนอก เติมค่ากินพิเศษ 10% + พอร์ตลงทุน Bee 40% + Shark 20% + Cat 20% + Rhino 10%'
   }

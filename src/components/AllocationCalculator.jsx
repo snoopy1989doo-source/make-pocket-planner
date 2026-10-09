@@ -401,14 +401,14 @@ export function AllocationCalculator({
                       </span>
                     </div>
                     <span className="text-[11px] text-slate-500 block">
-                      {cat.pockets.length} กระเป๋า • รวม {formatMoney(cat.totalAllocated)} ({cat.percentage}%)
+                      งบ Agent {formatMoney(cat.allocatedAmount)} ({cat.percentage}%) · ลง Pocket {formatMoney(cat.totalAllocated)} · เหลือใน Agent {formatMoney(cat.unallocatedAmount)}
                     </span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
                   <span className="font-bold text-sm sm:text-base font-mono-numeric text-slate-900">
-                    {formatMoney(cat.totalAllocated)}
+                    {formatMoney(cat.allocatedAmount)}
                   </span>
                   {isCollapsed ? (
                     <ChevronDown className="w-5 h-5 text-slate-400" />

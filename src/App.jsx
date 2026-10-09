@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { DEFAULT_POCKETS, CATEGORIES, ROUND_PRESETS } from './data/defaultPockets';
-import { calculateAllocation } from './utils/allocationEngine';
+import { calculateAllocation, createAgentRulesFromLegacy } from './utils/allocationEngine';
 import { Header } from './components/Header';
 import { AllocationCalculator } from './components/AllocationCalculator';
 import { TransferChecklist } from './components/TransferChecklist';
@@ -34,14 +34,24 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('calculator');
   const [pockets, setPockets] = useLocalStorage('make_pockets_v3', DEFAULT_POCKETS);
   const [folders, setFolders] = useLocalStorage('make_folders_v1', []);
+  const [agentRules, setAgentRules] = useLocalStorage('make_agent_rules_v1', null);
   const [currentMode, setCurrentMode] = useLocalStorage('make_current_mode', 'round10');
   
   // Independent income amounts for each mode
   const [incomeAmounts, setIncomeAmounts] = useLocalStorage('make_income_amounts_v2', {
     round10: 6000,
     round25: 6000,
-    special: 5000
+    special: 1000
   });
+
+  // One-time migration: turn former salary-level pocket/folder rules into Agent budgets.
+  // Pocket rules remain intact and now split their Agent's assigned budget.
+  useEffect(() => {
+    if (agentRules !== null) return;
+    setAgentRules(createAgentRulesFromLegacy(pockets, folders, incomeAmounts));
+    setPockets(prev => prev.map(({ folderId, ...pocket }) => pocket));
+    setFolders([]);
+  }, [agentRules, folders, pockets, incomeAmounts, setAgentRules, setFolders, setPockets]);
 
   // Custom editable pinned notes for each round
   const [roundDescriptions, setRoundDescriptions] = useLocalStorage('make_round_descriptions_v1', DEFAULT_ROUND_DESCRIPTIONS);
@@ -61,7 +71,7 @@ export default function App() {
   // Get current active income amount for the selected mode
   const currentIncomeAmount = incomeAmounts[currentMode] !== undefined
     ? incomeAmounts[currentMode]
-    : (currentMode === 'special' ? 5000 : 6000);
+    : (currentMode === 'special' ? 1000 : 6000);
 
   const handleSetIncomeAmount = (amount) => {
     const num = Math.max(0, Number(amount) || 0);
@@ -87,17 +97,18 @@ export default function App() {
 
   // Compute live allocation
   const calculation = useMemo(() => {
-    return calculateAllocation(currentIncomeAmount, currentMode, pockets, folders);
-  }, [currentIncomeAmount, currentMode, pockets, folders]);
+    return calculateAllocation(currentIncomeAmount, currentMode, pockets, folders, agentRules);
+  }, [currentIncomeAmount, currentMode, pockets, folders, agentRules]);
 
   // Export JSON Backup
   const handleExportBackup = () => {
     const backupData = {
       app: 'Money Planner',
-      version: '1.6',
+      version: '1.7',
       exportDate: new Date().toISOString(),
       pockets,
       folders,
+      agentRules,
       currentMode,
       incomeAmounts,
       roundDescriptions,
@@ -119,6 +130,9 @@ export default function App() {
     if (data && data.pockets && Array.isArray(data.pockets)) {
       setPockets(data.pockets);
       setFolders(Array.isArray(data.folders) ? data.folders : []);
+      setAgentRules(data.agentRules || createAgentRulesFromLegacy(data.pockets, Array.isArray(data.folders) ? data.folders : [], data.incomeAmounts));
+      setPockets(data.pockets.map(({ folderId, ...pocket }) => pocket));
+      setFolders([]);
       if (data.history) setHistory(data.history);
       if (data.incomeAmounts) setIncomeAmounts(data.incomeAmounts);
       if (data.roundDescriptions) setRoundDescriptions(data.roundDescriptions);
@@ -136,6 +150,7 @@ export default function App() {
     if (window.confirm('คุณต้องการรีเซ็ตกระเป๋าและกฎทั้งหมดกลับเป็นค่าเริ่มต้น 5 หมวดหมู่ (Squirrel, Rhino, Cat, Bee, Shark) หรือไม่?')) {
       setPockets(DEFAULT_POCKETS);
       setFolders([]);
+      setAgentRules(createAgentRulesFromLegacy(DEFAULT_POCKETS));
       setCheckedPocketsByRound({
         round10: {},
         round25: {},
@@ -144,7 +159,7 @@ export default function App() {
       setIncomeAmounts({
         round10: 6000,
         round25: 6000,
-        special: 5000
+        special: 1000
       });
       setRoundDescriptions(DEFAULT_ROUND_DESCRIPTIONS);
       alert('รีเซ็ตระบบกลับเป็นค่าเริ่มต้น 5 หมวดหมู่เรียบร้อยแล้ว!');
@@ -195,6 +210,7 @@ export default function App() {
         ...folder,
         rules: Object.fromEntries(['round10', 'round25', 'special'].map(mode => [mode, { mode: 'percent_remaining', value: 0 }]))
       })));
+      setAgentRules(prev => Object.fromEntries(CATEGORIES.map(category => [category.id, Object.fromEntries(['round10', 'round25', 'special'].map(mode => [mode, { mode: 'percent_remaining', value: 0 }]))])));
       alert('รีเซ็ตสัดส่วนทุกกระเป๋าเป็น 0 เรียบร้อยแล้ว!');
     }
   };
@@ -274,6 +290,8 @@ export default function App() {
             setPockets={setPockets}
             folders={folders}
             setFolders={setFolders}
+            agentRules={agentRules || createAgentRulesFromLegacy(pockets, folders, incomeAmounts)}
+            setAgentRules={setAgentRules}
             incomeAmounts={incomeAmounts}
           />
         )}

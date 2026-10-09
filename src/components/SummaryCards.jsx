@@ -24,10 +24,10 @@ export function SummaryCards({ categoryBreakdown, totalIncome }) {
 
             <div className="mt-1">
               <div className="text-base sm:text-lg font-bold font-mono-numeric text-slate-900 leading-tight">
-                {formatMoney(cat.totalAllocated)}
+                {formatMoney(cat.allocatedAmount)}
               </div>
               <div className="text-[11px] text-slate-500 mt-0.5 truncate">
-                {cat.pockets.length} กระเป๋า
+                {cat.pockets.length} กระเป๋า · ลงกระเป๋า {formatMoney(cat.totalAllocated)}
               </div>
             </div>
 
