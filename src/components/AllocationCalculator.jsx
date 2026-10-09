@@ -387,29 +387,40 @@ export function AllocationCalculator({
               {/* Category Section Header */}
               <button
                 onClick={() => toggleCategory(cat.id)}
-                className={`w-full px-4 py-3 flex items-center justify-between transition-colors border-b ${cat.bgColor} ${cat.borderColor}`}
+                className={`w-full px-3.5 sm:px-4 py-3.5 flex items-start justify-between gap-3 text-left transition-colors border-b ${cat.bgColor} ${cat.borderColor}`}
               >
-                <div className="flex items-center gap-2.5">
-                  <span className="text-2xl">{cat.emoji}</span>
-                  <div className="text-left">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900 text-sm sm:text-base">
-                        {cat.name}
-                      </span>
-                      <span className="text-xs text-slate-500 hidden sm:inline">
-                        • {cat.thName}
-                      </span>
+                <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/80 text-xl shadow-sm ring-1 ring-black/5">{cat.emoji}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span className="font-bold text-slate-900 text-sm sm:text-base">{cat.name}</span>
+                      <span className="text-[10px] text-slate-500">{cat.thName}</span>
                     </div>
-                    <span className="text-[11px] text-slate-500 block">
-                      งบ Agent {formatMoney(cat.allocatedAmount)} ({cat.percentage}%) · ลง Pocket {formatMoney(cat.totalAllocated)} · เหลือใน Agent {formatMoney(cat.unallocatedAmount)}
-                    </span>
+                    <div className="mt-2 grid grid-cols-3 gap-1.5 sm:gap-2">
+                      <div className="rounded-lg bg-white/75 px-2 py-1.5 ring-1 ring-black/5">
+                        <span className="block text-[9px] leading-tight text-slate-500 sm:text-[10px]">งบ Agent</span>
+                        <span className="mt-0.5 block truncate text-[11px] font-bold text-slate-800 sm:text-xs">{formatMoney(cat.allocatedAmount)}</span>
+                      </div>
+                      <div className="rounded-lg bg-white/75 px-2 py-1.5 ring-1 ring-black/5">
+                        <span className="block text-[9px] leading-tight text-slate-500 sm:text-[10px]">จัดเข้า Pocket</span>
+                        <span className="mt-0.5 block truncate text-[11px] font-bold text-indigo-700 sm:text-xs">{formatMoney(cat.totalAllocated)}</span>
+                      </div>
+                      <div className={`rounded-lg px-2 py-1.5 ring-1 ring-black/5 ${cat.unallocatedAmount > 0 ? 'bg-amber-50/90' : 'bg-white/75'}`}>
+                        <span className="block text-[9px] leading-tight text-slate-500 sm:text-[10px]">ยังไม่จัดสรร</span>
+                        <span className={`mt-0.5 block truncate text-[11px] font-bold sm:text-xs ${cat.unallocatedAmount > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>{formatMoney(cat.unallocatedAmount)}</span>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/80 ring-1 ring-black/5">
+                        <div className={`h-full rounded-full bg-gradient-to-r ${cat.accentColor}`} style={{ width: `${cat.allocatedAmount > 0 ? Math.min(100, cat.totalAllocated / cat.allocatedAmount * 100) : 0}%` }} />
+                      </div>
+                      <span className="shrink-0 text-[9px] font-medium text-slate-500">{cat.allocatedAmount > 0 ? Math.round(cat.totalAllocated / cat.allocatedAmount * 100) : 0}% ของงบ</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-sm sm:text-base font-mono-numeric text-slate-900">
-                    {formatMoney(cat.allocatedAmount)}
-                  </span>
+                <div className="flex shrink-0 items-center gap-1.5 pt-1">
+                  <span className="rounded-full bg-white/80 px-2 py-1 text-[10px] font-bold text-slate-700 ring-1 ring-black/5">{cat.percentage}%</span>
                   {isCollapsed ? (
                     <ChevronDown className="w-5 h-5 text-slate-400" />
                   ) : (

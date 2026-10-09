@@ -103,6 +103,15 @@ export function TransferChecklist({
   };
 
   const handleSaveHistoryDirect = () => {
+    const completedChecks = Object.fromEntries(nonZeroPockets.map(pocket => [pocket.id, true]));
+    const completedTotal = nonZeroPockets.length;
+    const completedNote = `โอนครบ ${completedTotal}/${totalCount} กระเป๋า (100%)`;
+
+    // Saving the round is the user's confirmation that every planned transfer is complete.
+    setCheckedPocketsByRound(prev => ({
+      ...prev,
+      [currentMode]: { ...(prev[currentMode] || {}), ...completedChecks }
+    }));
     if (onSaveToHistory) {
       onSaveToHistory({
         mode: currentMode,
@@ -110,7 +119,7 @@ export function TransferChecklist({
         summary: calculation.summary,
         pocketResults: calculation.pocketResults,
         categoryBreakdown: calculation.categoryBreakdown,
-        note: `โอนสำเร็จ ${completedCount}/${totalCount} กระเป๋า (${progressPercent}%)`
+        note: completedNote
       });
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 2500);

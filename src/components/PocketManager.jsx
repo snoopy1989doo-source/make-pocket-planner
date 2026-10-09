@@ -402,13 +402,13 @@ export function PocketManager({ pockets, setPockets, folders = [], setFolders = 
                   const base = [base10, base25, baseSpecial][index];
                   const result = results[index];
                   const capped = rule.mode === 'fixed' && (result?.allocatedAmount || 0) < (Number(rule.value) || 0);
-                  return <div key={mode} className="rounded-lg bg-slate-50 p-2">
+                  return <div key={mode} className={`rounded-lg p-2 ${capped ? 'bg-rose-50 ring-1 ring-rose-200' : 'bg-slate-50'}`}>
                     <label className="block text-[10px] font-semibold text-slate-500">{['รอบ 10', 'รอบ 25', 'เงินพิเศษ'][index]} · จาก {formatMoney(base)}</label>
                     <div className="mt-1 flex gap-1">
                       <select aria-label={`${agent.name} ${mode} รูปแบบ`} value={rule.mode} onChange={event => updateAgentRule(agent.id, mode, { mode: event.target.value })} className="w-24 rounded border border-slate-200 bg-white px-1.5 py-1.5 text-xs"><option value="fixed">฿ คงที่</option><option value="percent_remaining">% ของยอดรวม</option></select>
                       <input aria-label={`${agent.name} ${mode} จำนวน`} type="number" min="0" max={rule.mode === 'fixed' ? undefined : 100} step={rule.mode === 'fixed' ? '1' : '0.1'} value={rule.value || ''} placeholder="0" onFocus={event => event.target.select()} onChange={event => { const raw = event.target.value.replace(/^0+(?=\d)/, ''); updateAgentRule(agent.id, mode, { value: raw === '' ? 0 : Math.min(rule.mode === 'fixed' ? Infinity : 100, Math.max(0, Number(raw))) }); }} className="min-w-0 w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold" />
                     </div>
-                    <div className={`mt-1 text-[10px] ${capped ? 'text-rose-700' : 'text-slate-600'}`}>จัดได้ {formatMoney(result?.allocatedAmount || 0)}{capped ? ` · ขาด ${formatMoney((Number(rule.value) || 0) - (result?.allocatedAmount || 0))}` : ''}</div>
+                    <div className={`mt-1 text-[10px] ${capped ? 'font-semibold text-rose-700' : 'text-slate-600'}`}>จัดได้ {formatMoney(result?.allocatedAmount || 0)}{capped ? ` · เกินงบ ${formatMoney((Number(rule.value) || 0) - (result?.allocatedAmount || 0))}` : ''}</div>
                   </div>;
                 })}
               </div>
